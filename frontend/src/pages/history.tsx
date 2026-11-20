@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { Link } from "react-router"
 import { IconPencil } from "@tabler/icons-react"
 import { AttendanceFiltersBar } from "@/components/attendance-filters"
@@ -10,15 +9,15 @@ import { TableMessage, TableSkeletonRows } from "@/components/table-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useMyAttendance, type AttendanceFilters } from "@/hooks/queries"
+import { useMyAttendance } from "@/hooks/queries"
+import { ATTENDANCE_FILTER_DEFAULTS, ATTENDANCE_FILTER_RULES, useUrlFilters } from "@/hooks/use-url-filters"
 import { fmtDateLong, fmtTime } from "@/lib/format"
 
 const COLS = 5
 
 export default function HistoryPage() {
-  const [filters, setFilters] = useState<AttendanceFilters>({ page: 1, limit: 10 })
+  const [filters, patch] = useUrlFilters(ATTENDANCE_FILTER_DEFAULTS, ATTENDANCE_FILTER_RULES)
   const q = useMyAttendance(filters)
-  const patch = (p: Partial<AttendanceFilters>) => setFilters((f) => ({ ...f, ...p }))
 
   return (
     <>

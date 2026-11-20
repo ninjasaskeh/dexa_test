@@ -13,7 +13,8 @@ npm run db:setup      # runs database/schema.sql + seeds demo accounts (idempote
 npm run start:dev     # all 5 Nest apps in watch mode via concurrently
 npm run build         # nest build for each app, output in dist/apps/<name>/main.js
 npm run start:prod
-npm run typecheck     # tsc --noEmit over apps, libs and database
+npm test              # Jest unit + e2e tests (no DB/Redis needed)
+npm run typecheck     # tsc --noEmit over apps, libs, database and test
 npx nest start auth-service --watch   # run one app alone
 ```
 
@@ -23,10 +24,11 @@ Frontend (`cd frontend`, `.env` holds `VITE_API_URL`, default `http://localhost:
 npm run dev           # Vite on :5173
 npm run build         # tsc -b && vite build
 npm run lint          # oxlint (.oxlintrc.json)
+npm test              # Vitest (jsdom)
 npx shadcn@latest add <component>   # components.json is configured
 ```
 
-There is no test suite in either project. `docs/api.http` has ready-made requests (VS Code REST Client). `GET /api/health` reports TCP reachability of each microservice.
+Tests: `npm test` in `backend/` (Jest; `*.spec.ts` next to the code, `test/gateway.e2e-spec.ts` boots the real gateway `AppModule` with fake TCP clients and Redis) and in `frontend/` (Vitest + Testing Library, `*.test.ts(x)` in `src/`). Neither needs MySQL or Redis: `backend/test/helpers.ts` has `memRepo` (in-memory TypeORM repository), `fakeClient` (ClientProxy whose handlers may throw `{ statusCode, message }`), `FakeRedis`, `fakeQb`, `rpcErrorOf`, and `setNow('YYYY-MM-DD HH:mm')` to freeze `Date` in Asia/Jakarta. Run one file with `npx jest <path>` / `npx vitest run <path>`. `docs/api.http` has ready-made requests (VS Code REST Client). `GET /api/health` reports TCP reachability of each microservice.
 
 Demo accounts: `hr@dexa.local` / `Admin123!` (HR_ADMIN), `budi@dexa.local` and `rina@dexa.local` / `Karyawan123!` (EMPLOYEE).
 
@@ -63,4 +65,5 @@ React 19 + Vite + Tailwind v4 + shadcn/ui. Colors come only from the CSS tokens 
 - **API**: `lib/api.ts` holds the axios instance (`${VITE_API_URL}/api`). It attaches the token from `localStorage["dexa.token"]` and calls the `AuthProvider` logout handler on any 401 except login. Use `getErrorMessage` / `getFieldErrors` to show backend errors, `PhotoThumb` for proof photos, and `downloadFile(url, params, name)` for CSV exports (it converts blob error bodies back to JSON).
 - **Server state**: all queries and mutations live in `hooks/queries.ts` (TanStack Query). Query keys are grouped by `["employees", ...]`, `["attendance", ...]`, `["holidays", ...]` and `["requests", kind, scope, ...]`, and mutations invalidate by prefix (request and holiday mutations also invalidate `["attendance"]`). `clean()` strips empty and `"all"` filter values before sending params.
 - **Validation is duplicated**: `src/lib/schemas.ts` mirrors `backend/libs/common/src/schemas`, and `src/types.ts` mirrors backend response shapes. When a field or rule changes, update both sides.
+- **Filters live in the URL**: every list filter, search box, pagination value, month/year picker and tab is a query param (`useUrlFilters(defaults, rules)` + `useSearchInput` in `hooks/use-url-filters.ts`), so a refresh or a shared link restores the view. `defaults` must list every key and be stable (module constant or `useMemo`); values equal to the default are left out of the URL; invalid values (bad numbers, outside `rules`) fall back to the default. Writes use `replace`, so typing does not fill the history. Other params on the page (like `tab`) are kept.
 - Forms use React Hook Form + Zod through the `FormField` wrapper (`components/form-field.tsx`).

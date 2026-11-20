@@ -20,6 +20,6 @@
       "@app/common/*": ["libs/common/src/*"]
     }
   },
-  "include": ["apps/**/*.ts", "libs/**/*.ts", "database/**/*.ts"],
+  "include": ["apps/**/*.ts", "libs/**/*.ts", "database/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

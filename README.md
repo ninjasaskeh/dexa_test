@@ -60,6 +60,7 @@ Layout sidebar dari block shadcn `dashboard-01`, halaman login dari block `login
 | Backend | NestJS 11 (TypeScript, monorepo), **microservices via TCP** (`@nestjs/microservices`), TypeORM 0.3, MySQL, JWT, bcrypt, Zod 4, Multer |
 | Frontend | React 19 + Vite, Tailwind CSS v4, **shadcn/ui**, React Router, TanStack Query 5, React Hook Form + Zod, Recharts, date-fns |
 | Database | MySQL 8 (atau MariaDB 10.6+), Redis (penghitung login gagal & status sinkron libur) |
+| Testing | Jest + `@nestjs/testing` + Supertest (backend), Vitest + Testing Library + jsdom (frontend) |
 | Tooling | `tsc` (typecheck), oxlint, VS Code REST Client (`docs/api.http`) |
 
 ---
@@ -308,6 +309,7 @@ dexa-wfh/
 │   │   └── leave-service/src/
 │   ├── libs/common/src/             PATTERNS, schema Zod, RPC helper, helper tanggal
 │   ├── database/                    schema.sql, setup.ts (setup + migrasi + seed)
+│   ├── test/                        helper test (repo/Redis/TCP palsu) + e2e gateway
 │   └── uploads/                     foto bukti (dibuat otomatis, jangan di-commit)
 ├── frontend/src/
 │   ├── pages/                       satu file per halaman (lazy loaded)
@@ -433,14 +435,42 @@ Contoh request siap pakai ada di [`docs/api.http`](docs/api.http) (VS Code REST 
 | --- | --- | --- |
 | `backend/` | `npm run start:dev` | semua app dalam watch mode |
 | `backend/` | `npx nest start <app> --watch` | satu app saja, mis. `leave-service` |
-| `backend/` | `npm run typecheck` | `tsc --noEmit` untuk apps, libs, database |
+| `backend/` | `npm test` | semua unit test + e2e gateway (Jest, tanpa MySQL/Redis) |
+| `backend/` | `npm run test:cov` | test + laporan coverage di `backend/coverage/` |
+| `backend/` | `npm run typecheck` | `tsc --noEmit` untuk apps, libs, database, test |
 | `backend/` | `npm run build` / `start:prod` | build webpack ke `dist/apps/<app>/main.js` |
 | `backend/` | `npm run db:setup` | schema + migrasi + seed (idempotent) |
 | `frontend/` | `npm run dev` / `build` | Vite dev server / build produksi (`tsc -b && vite build`) |
+| `frontend/` | `npm test` | Vitest (schema, helper API, hook filter URL, komponen) |
 | `frontend/` | `npm run lint` | oxlint |
 | `frontend/` | `npx shadcn@latest add <komponen>` | tambah komponen shadcn (`components.json` sudah ada) |
 
-Belum ada test suite otomatis. Gunakan `docs/api.http` untuk uji manual endpoint.
+### Testing
+
+Semua test berjalan tanpa MySQL, Redis, atau service lain, jadi bisa langsung dijalankan setelah `npm install`:
+
+```bash
+cd backend && npm test     # 117 test, ~6 detik
+cd frontend && npm test    # 23 test, ~2 detik
+```
+
+**Backend** (Jest). File `*.spec.ts` ada di samping kode yang diuji; zona waktu dipaku ke `Asia/Jakarta` dan jam dibekukan per test (`setNow()` di `test/helpers.ts`).
+
+| Yang diuji | File | Contoh kasus |
+| --- | --- | --- |
+| Absen | `attendance.service.spec.ts` | terlambat setelah 09:00 (09:00:59 belum), absen ganda 409, check-out tanpa check-in, tutup setelah 22:00 |
+| Rekap & dashboard | `attendance.service.spec.ts` | hitungan hadir/terlambat/alpa/cuti/jam kerja sejak tanggal bergabung, hari ini baru dihitung setelah check-in, hari libur |
+| Koreksi absen | `correction.service.spec.ts` | batas 30 hari, urutan jam check-in/out, persetujuan membuat/mengubah absen dalam transaksi, HRD tidak bisa menyetujui miliknya, review bersamaan 409 |
+| Cuti/izin/sakit | `leave.service.spec.ts` | cuti sebelum tanggal mulai, izin/sakit maks 7 hari menyusul, tabrakan rentang 409 |
+| Kalender & sinkron libur | `calendar.service.spec.ts` | `WORK_DAYS`, libur yang disembunyikan, sinkron tidak menyentuh MANUAL, idempoten, kunci Redis 409, feed error 502 |
+| Login | `auth.service.spec.ts`, `login-limiter.spec.ts` | password salah vs email tak dikenal sama-sama 401, token palsu, akun nonaktif, blokir 5x gagal, fail-open saat Redis mati |
+| Karyawan | `employee.service.spec.ts` | akun login dihapus lagi bila simpan profil gagal (kompensasi) |
+| Helper | `libs/common/src/*.spec.ts`, `csv.spec.ts`, `upload.config.spec.ts` | schema Zod, mapping error RPC ke HTTP, CSV injection, cek magic bytes foto |
+| HTTP end-to-end | `test/gateway.e2e-spec.ts` | `AppModule` gateway asli dengan microservice & Redis palsu: 401/403, format error validasi, 429 login, upload foto, akses foto pemilik/HRD, export CSV |
+
+**Frontend** (Vitest + Testing Library): schema form (`lib/schemas.test.ts`), pesan error & `downloadFile` (`lib/api.test.ts`), format tanggal (`lib/format.test.ts`), `useUrlFilters`/`useSearchInput` (`hooks/use-url-filters.test.tsx`), dan komponen `DataTablePagination`.
+
+Uji manual endpoint ke service yang berjalan tetap bisa lewat `docs/api.http`.
 
 ### Menambah endpoint
 
@@ -490,8 +520,9 @@ Ikuti pola `leave-service`: folder `apps/<nama>/` dengan `tsconfig.app.json` dan
 | ![Absen selesai](docs/screenshots/absen-selesai.png) | ![Mode gelap di mobile](docs/screenshots/mobile-dark.png) |
 | ![Data karyawan](docs/screenshots/data-karyawan.png) | ![Form karyawan](docs/screenshots/form-karyawan.png) |
 | ![Monitoring](docs/screenshots/monitoring.png) | ![Foto bukti](docs/screenshots/foto-bukti.png) |
-
-> Screenshot halaman Pengajuan, Persetujuan, Rekap Bulanan, dan Hari Libur belum tersedia.
+| ![Dashboard HRD](docs/screenshots/dashboard-hrd.png) | ![Rekap bulanan](docs/screenshots/rekap.png) |
+| ![Pengajuan karyawan](docs/screenshots/pengajuan.png) | ![Persetujuan HRD](docs/screenshots/persetujuan.png) |
+| ![Hari libur](docs/screenshots/hari-libur.png) | |
 
 ---
 

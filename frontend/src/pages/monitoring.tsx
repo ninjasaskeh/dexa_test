@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { IconDownload, IconEye } from "@tabler/icons-react"
 import { AttendanceFiltersBar } from "@/components/attendance-filters"
@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useAllAttendance, type AttendanceFilters } from "@/hooks/queries"
-import { useDebounce } from "@/hooks/use-debounce"
+import { useAllAttendance } from "@/hooks/queries"
+import { ATTENDANCE_FILTER_DEFAULTS, ATTENDANCE_FILTER_RULES, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { downloadFile, getErrorMessage } from "@/lib/api"
 import { fmtDate, fmtTime } from "@/lib/format"
 
@@ -22,12 +22,9 @@ const COLS = 6
 
 /** Monitoring absensi seluruh karyawan (view only untuk HRD) */
 export default function MonitoringPage() {
-  const [filters, setFilters] = useState<AttendanceFilters>({ page: 1, limit: 10 })
-  const [search, setSearch] = useState("")
-  const debounced = useDebounce(search)
-  useEffect(() => setFilters((f) => ({ ...f, search: debounced || undefined, page: 1 })), [debounced])
+  const [filters, patch] = useUrlFilters(ATTENDANCE_FILTER_DEFAULTS, ATTENDANCE_FILTER_RULES)
+  const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s, page: 1 }))
   const q = useAllAttendance(filters)
-  const patch = (p: Partial<AttendanceFilters>) => setFilters((f) => ({ ...f, ...p }))
   const [exporting, setExporting] = useState(false)
 
   /** Export semua baris sesuai filter aktif (bukan hanya halaman ini) */

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { IconCheck, IconSearch, IconX } from "@tabler/icons-react"
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCancelRequest, useRequests, type RequestFilters, type RequestKind } from "@/hooks/queries"
-import { useDebounce } from "@/hooks/use-debounce"
+import { PAGE_LIMITS, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { getErrorMessage } from "@/lib/api"
 import { fmtDate, fmtDateTime, fmtTime } from "@/lib/format"
 import type { CorrectionRequest, LeaveRequest, RequestStatus } from "@/types"
@@ -30,6 +30,8 @@ const STATUS_OPTIONS: { value: RequestStatus | "all"; label: string }[] = [
   { value: "REJECTED", label: "Ditolak" },
   { value: "CANCELLED", label: "Dibatalkan" },
 ]
+
+const STATUS_RULES = { limit: PAGE_LIMITS, status: STATUS_OPTIONS.map((o) => o.value) }
 
 const leaveRange = (l: LeaveRequest) => (l.startDate === l.endDate ? fmtDate(l.startDate) : `${fmtDate(l.startDate)} – ${fmtDate(l.endDate)}`)
 const leaveDays = (l: LeaveRequest) => differenceInCalendarDays(parseISO(l.endDate), parseISO(l.startDate)) + 1
@@ -55,15 +57,13 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
   toolbar?: ReactNode
 }) {
   const isHr = scope === "all"
-  const [filters, setFilters] = useState<RequestFilters>({ page: 1, limit: 10, status: defaultStatus })
-  const [search, setSearch] = useState("")
-  const debounced = useDebounce(search)
-  useEffect(() => setFilters((f) => ({ ...f, search: debounced || undefined, page: 1 })), [debounced])
+  const defaults = useMemo<RequestFilters>(() => ({ page: 1, limit: 10, status: defaultStatus, search: undefined }), [defaultStatus])
+  const [filters, patch] = useUrlFilters(defaults, STATUS_RULES)
+  const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s, page: 1 }))
   const q = useRequests(kind, scope, filters)
   const cancel = useCancelRequest(kind)
   const [confirmCancel, setConfirmCancel] = useState<Item | null>(null)
   const [review, setReview] = useState<ReviewTarget | null>(null)
-  const patch = (p: Partial<RequestFilters>) => setFilters((f) => ({ ...f, ...p }))
 
   const doCancel = async (it: Item) => {
     try {
@@ -79,7 +79,7 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
   const headers = [
     ...(isHr ? ["Karyawan"] : []),
     ...(kind === "leave" ? ["Jenis", "Tanggal"] : ["Tanggal", "Tipe", "Jam"]),
-    "Alasan", "Status", "Diajukan", "",
+    "Alasan", "Status", "",
   ]
   const cols = headers.length
 
@@ -143,14 +143,16 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
                         </TableCell>
                       </>
                     )}
-                    <TableCell className="max-w-64"><p className="truncate text-sm" title={it.reason}>{it.reason}</p></TableCell>
+                    <TableCell className="max-w-64">
+                      <p className="truncate text-sm" title={it.reason}>{it.reason}</p>
+                      <p className="text-muted-foreground text-xs whitespace-nowrap">Diajukan {fmtDateTime(it.createdAt)}</p>
+                    </TableCell>
                     <TableCell className="max-w-56">
                       <div className="flex flex-col items-start gap-1">
                         <RequestStatusBadge status={it.status} />
                         {it.reviewNote && <span className="text-muted-foreground truncate text-xs" title={it.reviewNote}>{it.reviewNote}</span>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{fmtDateTime(it.createdAt)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       {it.status === "PENDING" && !isHr && (
                         <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(it)}>Batalkan</Button>

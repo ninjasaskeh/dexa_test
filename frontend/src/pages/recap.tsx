@@ -15,12 +15,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMonthlyRecap } from "@/hooks/queries"
+import { MONTH_RE, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { downloadFile, getErrorMessage } from "@/lib/api"
 import { fmtDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { RecapRow } from "@/types"
 
 const COLS = 11
+const DEFAULTS: { month?: string; search?: string; department: string } = { month: undefined, search: undefined, department: "all" }
+const RULES = { month: MONTH_RE }
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
 const monthLabel = (m: string) => format(parseISO(`${m}-01`), "MMMM yyyy", { locale: id })
 const shiftMonth = (m: string, n: number) => format(addMonths(parseISO(`${m}-01`), n), "yyyy-MM")
@@ -36,21 +39,23 @@ function Num({ n, tone }: { n: number; tone?: "warning" | "primary" }) {
 }
 
 export default function RecapPage() {
-  const [month, setMonth] = useState<string>()
+  const [filters, patch] = useUrlFilters(DEFAULTS, RULES)
+  const { month, department } = filters
+  const setMonth = (m: string) => patch({ month: m })
+  const setDepartment = (d: string) => patch({ department: d })
   const q = useMonthlyRecap(month)
   const r = q.data
-  const [search, setSearch] = useState("")
-  const [department, setDepartment] = useState("all")
+  const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s }))
   const [exporting, setExporting] = useState(false)
 
   const departments = useMemo(() => [...new Set(r?.data.map((d) => d.employee.department))].sort(), [r])
   const rows = useMemo(() => {
-    const s = search.trim().toLowerCase()
+    const s = (filters.search ?? "").toLowerCase()
     return (r?.data ?? [])
       .filter((d) => department === "all" || d.employee.department === department)
       .filter((d) => !s || [d.employee.fullName, d.employee.employeeCode, d.employee.position].some((v) => v.toLowerCase().includes(s)))
       .sort((a, b) => b.absent - a.absent || a.employee.fullName.localeCompare(b.employee.fullName))
-  }, [r, search, department])
+  }, [r, filters.search, department])
 
   const totals = rows.reduce(
     (t, d: RecapRow) => ({ workDays: t.workDays + d.workDays, present: t.present + d.present, late: t.late + d.late, absent: t.absent + d.absent }),

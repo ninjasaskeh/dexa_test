@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { IconDotsVertical, IconPencil, IconPlus, IconSearch, IconUserCheck, IconUserOff } from "@tabler/icons-react"
 import { ActiveBadge } from "@/components/attendance-badge"
@@ -18,19 +18,19 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useEmployeeStats, useEmployees, useToggleEmployee, type EmployeeFilters } from "@/hooks/queries"
-import { useDebounce } from "@/hooks/use-debounce"
+import { PAGE_LIMITS, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { getErrorMessage } from "@/lib/api"
 import { fmtDate, fmtRelative } from "@/lib/format"
 import type { Employee } from "@/types"
 
 const COLS = 7
+const DEFAULTS: EmployeeFilters = { page: 1, limit: 10, search: undefined, department: undefined, status: "all" }
+const RULES = { limit: PAGE_LIMITS, status: ["all", "active", "inactive"] }
 
 export default function EmployeesPage() {
   const { user } = useAuth()
-  const [filters, setFilters] = useState<EmployeeFilters>({ page: 1, limit: 10, status: "all" })
-  const [search, setSearch] = useState("")
-  const debounced = useDebounce(search)
-  useEffect(() => setFilters((f) => ({ ...f, search: debounced || undefined, page: 1 })), [debounced])
+  const [filters, patch] = useUrlFilters(DEFAULTS, RULES)
+  const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s, page: 1 }))
   const q = useEmployees(filters)
   const stats = useEmployeeStats()
   const toggle = useToggleEmployee()
@@ -38,7 +38,6 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState<Employee | null>(null)
   const [confirm, setConfirm] = useState<Employee | null>(null)
   const departments = stats.data?.departments ?? []
-  const patch = (p: Partial<EmployeeFilters>) => setFilters((f) => ({ ...f, ...p }))
 
   const openForm = (e: Employee | null) => { setEditing(e); setFormOpen(true) }
 

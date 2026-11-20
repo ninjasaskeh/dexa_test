@@ -41,7 +41,7 @@ export function NavMain({ label, items }: { label: string; items: NavItem[] }) {
                   <span>{item.title}</span>
                 </NavLink>
               </SidebarMenuButton>
-              {!!item.badge && <SidebarMenuBadge className="bg-primary text-primary-foreground rounded-full">{item.badge}</SidebarMenuBadge>}
+              {!!item.badge && <SidebarMenuBadge className="bg-primary text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground rounded-full">{item.badge}</SidebarMenuBadge>}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

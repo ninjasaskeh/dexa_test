@@ -16,11 +16,15 @@ import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useCreateHoliday, useDeleteHoliday, useHolidays, useRestoreHoliday, useSyncHolidays } from "@/hooks/queries"
+import { useUrlFilters } from "@/hooks/use-url-filters"
 import { getErrorMessage, getFieldErrors } from "@/lib/api"
 import { fmtDateLong, fmtRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { holidaySchema, type HolidayValues } from "@/lib/schemas"
 import type { Holiday } from "@/types"
+
+const DEFAULTS: { year?: string } = { year: undefined }
+const RULES = { year: /^\d{4}$/ }
 
 const DAY_NAMES = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 
@@ -33,7 +37,9 @@ function workDaysLabel(days: number[]) {
 
 /** HRD: kelola hari libur nasional / perusahaan yang dikecualikan dari hari kerja */
 export default function HolidaysPage() {
-  const [year, setYear] = useState<number>()
+  const [filters, patch] = useUrlFilters(DEFAULTS, RULES)
+  const year = filters.year ? Number(filters.year) : undefined
+  const setYear = (n: number) => patch({ year: String(n) })
   const q = useHolidays(year)
   const create = useCreateHoliday()
   const remove = useDeleteHoliday()

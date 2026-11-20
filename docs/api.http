@@ -1,0 +1,177 @@
+### Variabel
+@base = http://localhost:3000/api
+
+### Health check microservices
+GET {{base}}/health
+
+### Login Admin HRD
+# @name hr
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "hr@dexa.local", "password": "Admin123!" }
+
+### Login Karyawan
+# @name emp
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "budi@dexa.local", "password": "Karyawan123!" }
+
+### Profil saya
+GET {{base}}/auth/me
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### Check-in dengan foto
+POST {{base}}/attendance
+Authorization: Bearer {{emp.response.body.accessToken}}
+Content-Type: multipart/form-data; boundary=WFH
+
+--WFH
+Content-Disposition: form-data; name="type"
+
+CHECK_IN
+--WFH
+Content-Disposition: form-data; name="notes"
+
+Kerja dari rumah
+--WFH
+Content-Disposition: form-data; name="photo"; filename="selfie.png"
+Content-Type: image/png
+
+< ./screenshots/login.png
+--WFH--
+
+### Status hari ini
+GET {{base}}/attendance/today
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### Riwayat saya
+GET {{base}}/attendance/me?page=1&limit=10
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### [HRD] Daftar karyawan
+GET {{base}}/employees?page=1&limit=10&search=budi
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Tambah karyawan
+POST {{base}}/employees
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Andi Pratama",
+  "employeeCode": "EMP-010",
+  "email": "andi@dexa.local",
+  "password": "Karyawan123!",
+  "position": "QA Engineer",
+  "department": "IT",
+  "phone": "081311112222",
+  "joinDate": "2026-01-05",
+  "role": "EMPLOYEE"
+}
+
+### [HRD] Ubah karyawan
+PATCH {{base}}/employees/4
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "position": "Senior QA Engineer" }
+
+### [HRD] Nonaktifkan karyawan
+DELETE {{base}}/employees/4
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Monitoring absensi
+GET {{base}}/attendance?page=1&limit=10&from=2026-11-01&to=2026-11-30
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Ringkasan dashboard
+GET {{base}}/attendance/summary
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### Foto bukti (hanya pemilik absen atau HRD; tidak ada lagi /uploads publik)
+GET {{base}}/attendance/1/photo
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### [HRD] Export monitoring ke CSV (filter sama dengan monitoring, tanpa paginasi)
+GET {{base}}/attendance/export?from=2026-11-01&to=2026-11-30
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Rekap bulanan (month kosong = bulan berjalan menurut server)
+GET {{base}}/attendance/recap?month=2026-11
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Export rekap bulanan ke CSV
+GET {{base}}/attendance/recap/export?month=2026-11
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### Daftar hari libur
+GET {{base}}/holidays?year=2026
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### [HRD] Tambah hari libur
+POST {{base}}/holidays
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "date": "2026-12-25", "name": "Hari Raya Natal" }
+
+### [HRD] Hapus hari libur (libur hasil sinkron hanya disembunyikan)
+DELETE {{base}}/holidays/1
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Tampilkan lagi libur yang disembunyikan
+PATCH {{base}}/holidays/1
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "isActive": true }
+
+### [HRD] Sinkron ulang libur nasional & cuti bersama dari HOLIDAY_SYNC_URL
+POST {{base}}/holidays/sync
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### Ajukan cuti / izin / sakit
+POST {{base}}/leave
+Authorization: Bearer {{emp.response.body.accessToken}}
+Content-Type: application/json
+
+{ "type": "CUTI", "startDate": "2026-12-28", "endDate": "2026-12-30", "reason": "Cuti akhir tahun" }
+
+### Pengajuan cuti saya
+GET {{base}}/leave/me?status=PENDING
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### Batalkan pengajuan (hanya yang masih PENDING)
+PATCH {{base}}/leave/1/cancel
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### [HRD] Semua pengajuan cuti
+GET {{base}}/leave?status=PENDING&search=budi
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Setujui / tolak (tolak wajib "note")
+PATCH {{base}}/leave/1/review
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "status": "REJECTED", "note": "Bentrok dengan jadwal tutup buku" }
+
+### Ajukan koreksi absen (lupa check-out)
+POST {{base}}/corrections
+Authorization: Bearer {{emp.response.body.accessToken}}
+Content-Type: application/json
+
+{ "date": "2026-11-19", "type": "CHECK_OUT", "time": "17:00", "reason": "Lupa check-out karena listrik padam" }
+
+### Koreksi saya
+GET {{base}}/corrections/me
+Authorization: Bearer {{emp.response.body.accessToken}}
+
+### [HRD] Setujui koreksi (jam absen langsung berubah)
+PATCH {{base}}/corrections/1/review
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "status": "APPROVED" }

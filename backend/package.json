@@ -1,0 +1,43 @@
+{
+  "name": "dexa-wfh-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend microservices Aplikasi Absensi WFH Dexa (NestJS + MySQL)",
+  "scripts": {
+    "build": "nest build auth-service && nest build employee-service && nest build attendance-service && nest build leave-service && nest build api-gateway",
+    "start:dev": "concurrently -k -n auth,employee,attendance,leave,gateway -c blue,magenta,yellow,cyan,green \"nest start auth-service --watch\" \"nest start employee-service --watch\" \"nest start attendance-service --watch\" \"nest start leave-service --watch\" \"nest start api-gateway --watch\"",
+    "start:prod": "concurrently -k -n auth,employee,attendance,leave,gateway \"node dist/apps/auth-service/main\" \"node dist/apps/employee-service/main\" \"node dist/apps/attendance-service/main\" \"node dist/apps/leave-service/main\" \"node dist/apps/api-gateway/main\"",
+    "db:setup": "ts-node -r tsconfig-paths/register database/setup.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/microservices": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@nestjs/typeorm": "^11.0.0",
+    "bcryptjs": "^3.0.2",
+    "ioredis": "^5.11.1",
+    "multer": "^2.0.0",
+    "mysql2": "^3.14.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.24",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.1.0",
+    "dotenv": "^16.6.1",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.8.0",
+    "webpack": "^5.106.2"
+  }
+}

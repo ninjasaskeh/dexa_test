@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "outDir": "../../dist/apps/employee-service" },
+  "include": ["src/**/*", "../../libs/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

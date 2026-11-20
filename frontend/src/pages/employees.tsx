@@ -17,30 +17,30 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useEmployeeStats, useEmployees, useToggleEmployee, type EmployeeFilters } from "@/hooks/queries"
+import { useDepartments, useEmployees, useToggleEmployee, type EmployeeFilters } from "@/hooks/queries"
 import { PAGE_LIMITS, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { getErrorMessage } from "@/lib/api"
 import { fmtDate, fmtRelative } from "@/lib/format"
+import { rowNo } from "@/lib/utils"
 import type { Employee } from "@/types"
 
-const COLS = 7
-const DEFAULTS: EmployeeFilters = { page: 1, limit: 10, search: undefined, department: undefined, status: "all" }
-const RULES = { limit: PAGE_LIMITS, status: ["all", "active", "inactive"] }
+const COLS = 8
+const DEFAULTS: EmployeeFilters = { page: 1, limit: 10, search: undefined, departmentId: undefined, status: "all" }
+const RULES = { limit: PAGE_LIMITS, status: ["all", "active", "inactive"], departmentId: /^\d+$/ }
 
 export default function EmployeesPage() {
   const { user } = useAuth()
   const [filters, patch] = useUrlFilters(DEFAULTS, RULES)
   const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s, page: 1 }))
   const q = useEmployees(filters)
-  const stats = useEmployeeStats()
+  const depts = useDepartments()
   const toggle = useToggleEmployee()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [confirm, setConfirm] = useState<Employee | null>(null)
-  const departments = stats.data?.departments ?? []
+  const departments = depts.data ?? []
 
   const openForm = (e: Employee | null) => { setEditing(e); setFormOpen(true) }
-
   const doToggle = async (e: Employee) => {
     try {
       await toggle.mutateAsync({ id: e.id, isActive: !e.isActive })
@@ -56,7 +56,7 @@ export default function EmployeesPage() {
     <>
       <PageHeader
         title="Data Karyawan"
-        description="Kelola data master karyawan dan akun login mereka."
+        description="Kelola data kepegawaian karyawan beserta akun dan hak akses aplikasi."
         actions={<Button onClick={() => openForm(null)}><IconPlus /> Tambah karyawan</Button>}
       />
       <Card className="gap-0 overflow-hidden py-0">
@@ -64,13 +64,13 @@ export default function EmployeesPage() {
           <div className="flex flex-col gap-2 p-4 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="relative sm:w-72">
               <IconSearch className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama, kode, jabatan…" className="pl-8" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama, NIP, jabatan…" className="pl-8" />
             </div>
-            <Select value={filters.department ?? "all"} onValueChange={(v) => patch({ department: v === "all" ? undefined : v, page: 1 })}>
+            <Select value={filters.departmentId ?? "all"} onValueChange={(v) => patch({ departmentId: v === "all" ? undefined : v, page: 1 })}>
               <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua departemen</SelectItem>
-                {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {departments.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filters.status} onValueChange={(v) => patch({ status: v, page: 1 })}>
@@ -87,8 +87,9 @@ export default function EmployeesPage() {
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
+                  <TableHead className="w-12 text-center">No</TableHead>
                   <TableHead>Karyawan</TableHead>
-                  <TableHead>Kode</TableHead>
+                  <TableHead>NIP</TableHead>
                   <TableHead>Jabatan</TableHead>
                   <TableHead>Hak akses</TableHead>
                   <TableHead>Status</TableHead>
@@ -104,10 +105,11 @@ export default function EmployeesPage() {
                 ) : q.data?.data.length === 0 ? (
                   <TableMessage cols={COLS} title="Karyawan tidak ditemukan" description="Coba kata kunci lain atau tambahkan karyawan baru." action={<Button size="sm" onClick={() => openForm(null)}><IconPlus /> Tambah karyawan</Button>} />
                 ) : (
-                  q.data?.data.map((e) => (
+                  q.data?.data.map((e, i) => (
                     <TableRow key={e.id} className={e.isActive ? undefined : "opacity-60"}>
+                      <TableCell className="text-muted-foreground w-12 text-center tabular-nums">{rowNo(i, q.data?.meta)}</TableCell>
                       <TableCell><EmployeeCell name={e.fullName} subtitle={e.email ?? undefined} /></TableCell>
-                      <TableCell><span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">{e.employeeCode}</span></TableCell>
+                      <TableCell><span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">{e.nip}</span></TableCell>
                       <TableCell>
                         <p className="font-medium">{e.position}</p>
                         <p className="text-muted-foreground text-xs">{e.department} · sejak {fmtDate(e.joinDate)}</p>
@@ -115,7 +117,12 @@ export default function EmployeesPage() {
                       <TableCell>
                         <span className={e.role === "HR_ADMIN" ? "text-primary text-sm font-medium" : "text-sm"}>{e.role === "HR_ADMIN" ? "Admin HRD" : "Karyawan"}</span>
                       </TableCell>
-                      <TableCell><ActiveBadge active={e.isActive} /></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-1">
+                          <ActiveBadge active={e.isActive} />
+                          {e.mustChangePassword && <span className="text-muted-foreground text-xs">Password masih NIP</span>}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{e.lastLoginAt ? fmtRelative(e.lastLoginAt) : "Belum pernah"}</TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -159,6 +166,7 @@ export default function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { FakeRedis, fakeConfig, memRepo, restoreTime, rpcErrorOf, setNow } from '../../../test/helpers';
-import { CalendarService } from './calendar.service';
+import { CalendarService, parseFeed } from './calendar.service';
 import { Holiday } from './holiday.entity';
 
 const FEED = 'https://contoh.test/holidays.json';
@@ -46,7 +46,7 @@ describe('CalendarService: hari kerja', () => {
 describe('CalendarService: kelola hari libur', () => {
   it('menolak tanggal yang sudah terdaftar (409)', async () => {
     const { service } = setup({ holidays: [{ id: 1, date: '2026-12-25', name: 'Natal', source: 'SYNC', isActive: true }] });
-    expect(await rpcErrorOf(service.create({ date: '2026-12-25', name: 'Libur kantor' }))).toEqual({
+    expect(await rpcErrorOf(service.create({ date: '2026-12-25', name: 'Libur kantor', type: 'HOLIDAY' }))).toEqual({
       statusCode: 409, message: 'Tanggal ini sudah terdaftar sebagai hari libur (Natal)',
     });
   });
@@ -64,13 +64,85 @@ describe('CalendarService: kelola hari libur', () => {
   });
 });
 
+describe('parseFeed', () => {
+  it('format API Tanggal Merah: tipe leave jadi cuti bersama, tanggal ganda digabung', () => {
+    expect(parseFeed({
+      success: true,
+      data: [
+        { date: '2026-03-20', day: 'Jumat', name: 'Idul Fitri 1447 H', type: 'leave' },
+        { date: '2026-03-21', day: 'Sabtu', name: 'Idul Fitri 1447 H', type: 'holiday' },
+        { date: '2026-03-21', day: 'Sabtu', name: 'Hari lain', type: 'leave' },
+        { date: 'bukan-tanggal', name: 'x', type: 'holiday' },
+        { date: '2026-04-01', name: '   ', type: 'holiday' },
+      ],
+    })).toEqual([
+      { date: '2026-03-20', name: 'Idul Fitri 1447 H', type: 'LEAVE' },
+      { date: '2026-03-21', name: 'Idul Fitri 1447 H / Hari lain', type: 'HOLIDAY' },
+    ]);
+  });
+
+  it('file data Tanggal Merah dan format lama APIHariLibur juga dikenali', () => {
+    expect(parseFeed({ year: 2026, holidays: [{ date: '2026-08-17', name: 'Kemerdekaan', type: 'holiday' }] })).toEqual([
+      { date: '2026-08-17', name: 'Kemerdekaan', type: 'HOLIDAY' },
+    ]);
+    expect(parseFeed({ '2026-02-16': { summary: ['Cuti Bersama Imlek'] }, info: {} })).toEqual([
+      { date: '2026-02-16', name: 'Cuti Bersama Imlek', type: 'LEAVE' },
+    ]);
+    expect(() => parseFeed('teks')).toThrow('format data tidak dikenali');
+  });
+});
+
+describe('CalendarService: sinkron dari API Tanggal Merah', () => {
+  const API = 'https://tanggalmerah.contoh/api';
+  const responses: Record<string, [number, unknown]> = {
+    [`${API}/years`]: [200, { success: true, data: [2026, 2027, 2030] }],
+    [`${API}/holidays?year=2026`]: [200, { success: true, data: [
+      { date: '2026-01-01', name: 'Tahun Baru 2026 Masehi', type: 'holiday' },
+      { date: '2026-02-16', name: 'Tahun Baru Imlek 2577 Kongzili', type: 'leave' },
+    ] }],
+    [`${API}/holidays?year=2027`]: [200, { success: true, data: [{ date: '2027-01-01', name: 'Tahun Baru 2027 Masehi', type: 'holiday' }] }],
+    [`${API}/holidays?year=2030`]: [404, { success: false, code: 'YEAR_NOT_FOUND' }],
+  };
+
+  beforeEach(() => {
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const [status, body] = responses[String(input)] ?? [500, {}];
+      return new Response(JSON.stringify(body), { status });
+    });
+  });
+
+  it('mengambil daftar tahun lalu libur per tahun; tahun tanpa data tidak dianggap tercakup', async () => {
+    const { service, holidays } = setup({
+      env: { HOLIDAY_SYNC_URL: `${API}/` },
+      holidays: [
+        { id: 1, date: '2026-01-01', name: 'Tahun Baru', type: 'HOLIDAY', source: 'SYNC', isActive: true },
+        { id: 2, date: '2030-01-01', name: 'Data lama 2030', type: 'HOLIDAY', source: 'SYNC', isActive: true },
+      ],
+    });
+    await expect(service.sync()).resolves.toMatchObject({ ok: true, added: 2, updated: 1, removed: 0, years: ['2026', '2027'] });
+    expect(holidays.rows.map((h) => [h.date, h.name, h.type])).toEqual([
+      ['2026-01-01', 'Tahun Baru 2026 Masehi', 'HOLIDAY'],
+      ['2030-01-01', 'Data lama 2030', 'HOLIDAY'],
+      ['2026-02-16', 'Tahun Baru Imlek 2577 Kongzili', 'LEAVE'],
+      ['2027-01-01', 'Tahun Baru 2027 Masehi', 'HOLIDAY'],
+    ]);
+  });
+
+  it('sumber tanpa daftar tahun gagal 502 tanpa mengubah data', async () => {
+    responses[`${API}/years`] = [200, { success: true, data: [] }];
+    const { service, holidays } = setup({ env: { HOLIDAY_SYNC_URL: API }, holidays: [{ id: 1, date: '2026-01-01', name: 'x', type: 'HOLIDAY', source: 'SYNC', isActive: true }] });
+    expect((await rpcErrorOf(service.sync())).statusCode).toBe(502);
+    expect(holidays.rows).toHaveLength(1);
+  });
+});
+
 describe('CalendarService: sinkron dari feed online', () => {
   const existing: Partial<Holiday>[] = [
-    { id: 1, date: '2026-01-01', name: 'Tahun Baru', source: 'SYNC', isActive: true }, // nama berubah di feed
-    { id: 2, date: '2026-03-01', name: 'Cuti bersama dibatalkan', source: 'SYNC', isActive: true }, // hilang dari feed
-    { id: 3, date: '2026-06-01', name: 'Ulang tahun kantor', source: 'MANUAL', isActive: true }, // tidak boleh disentuh
-    { id: 4, date: '2026-12-25', name: 'Hari Raya Natal', source: 'SYNC', isActive: false }, // disembunyikan HRD
-    { id: 5, date: '2025-05-01', name: 'Tahun lain', source: 'SYNC', isActive: true }, // tahun di luar feed
+    { id: 1, date: '2026-01-01', name: 'Tahun Baru', type: 'HOLIDAY', source: 'SYNC', isActive: true }, // nama berubah di feed
+    { id: 2, date: '2026-03-01', name: 'Cuti bersama dibatalkan', type: 'HOLIDAY', source: 'SYNC', isActive: true }, // hilang dari feed
+    { id: 3, date: '2026-06-01', name: 'Ulang tahun kantor', type: 'HOLIDAY', source: 'MANUAL', isActive: true }, // tidak boleh disentuh
+    { id: 4, date: '2026-12-25', name: 'Hari Raya Natal', type: 'HOLIDAY', source: 'SYNC', isActive: false }, // disembunyikan HRD
+    { id: 5, date: '2025-05-01', name: 'Tahun lain', type: 'HOLIDAY', source: 'SYNC', isActive: true }, // tahun di luar feed
   ];
   const feed = {
     '2026-01-01': { summary: 'Tahun Baru Masehi' },
@@ -92,7 +164,7 @@ describe('CalendarService: sinkron dari feed online', () => {
     expect(byDate['2026-01-01']).toMatchObject({ name: 'Tahun Baru Masehi', source: 'SYNC' });
     expect(byDate['2026-03-01']).toBeUndefined();
     expect(byDate['2026-06-01']).toMatchObject({ name: 'Ulang tahun kantor', source: 'MANUAL' });
-    expect(byDate['2026-08-17']).toMatchObject({ name: 'Hari Kemerdekaan / HUT RI', source: 'SYNC', isActive: true });
+    expect(byDate['2026-08-17']).toMatchObject({ name: 'Hari Kemerdekaan / HUT RI', type: 'HOLIDAY', source: 'SYNC', isActive: true });
     expect(byDate['2026-12-25']).toMatchObject({ isActive: false });
     expect(byDate['2025-05-01']).toBeDefined();
 
@@ -131,8 +203,17 @@ describe('CalendarService: sinkron dari feed online', () => {
   it('feed error menjadi 502 dan status gagal disimpan', async () => {
     mockFeed({}, 500);
     const { service, redis } = setup();
-    expect(await rpcErrorOf(service.sync())).toEqual({ statusCode: 502, message: 'Gagal sinkron hari libur: HTTP 500' });
-    expect(JSON.parse((await redis.get('holidays:sync:last'))!)).toMatchObject({ ok: false, message: 'HTTP 500' });
+    expect(await rpcErrorOf(service.sync())).toEqual({ statusCode: 502, message: `Gagal sinkron hari libur: HTTP 500 dari ${FEED}` });
+    expect(JSON.parse((await redis.get('holidays:sync:last'))!)).toMatchObject({ ok: false, message: `HTTP 500 dari ${FEED}` });
+  });
+
+  it('feed kosong (gangguan di sumber) ditolak 502 tanpa menghapus libur yang ada', async () => {
+    mockFeed({ info: { updated: '20261120 17:05:58' } });
+    const { service, holidays } = setup({ holidays: existing });
+    const err = await rpcErrorOf(service.sync());
+    expect(err.statusCode).toBe(502);
+    expect(err.message).toMatch(/tidak berisi satu pun hari libur/);
+    expect(holidays.rows).toHaveLength(existing.length);
   });
 
   it('HOLIDAY_SYNC_URL kosong mematikan sinkron', async () => {

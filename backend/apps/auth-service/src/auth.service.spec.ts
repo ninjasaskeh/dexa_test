@@ -13,9 +13,11 @@ describe('AuthService', () => {
   beforeEach(async () => {
     const hash = await bcrypt.hash('Karyawan123!', 4);
     users = memRepo<User>([
-      { id: 1, email: 'budi@dexa.local', role: Role.EMPLOYEE, passwordHash: hash, isActive: true },
-      { id: 2, email: 'lama@dexa.local', role: Role.EMPLOYEE, passwordHash: hash, isActive: false },
+      { id: 1, email: 'budi@dexa.local', role: Role.EMPLOYEE, passwordHash: hash, isActive: true, mustChangePassword: false },
+      { id: 2, email: 'lama@dexa.local', role: Role.EMPLOYEE, passwordHash: hash, isActive: false, mustChangePassword: false },
     ]);
+    // nilai default kolom seperti di MySQL
+    users.create.mockImplementation((d: Partial<User>) => ({ isActive: true, mustChangePassword: false, ...d }));
     // login membaca passwordHash lewat query builder (kolom select: false)
     (users as any).createQueryBuilder = () => {
       let where: any = {};
@@ -29,7 +31,7 @@ describe('AuthService', () => {
 
   it('login berhasil mengembalikan JWT berisi id & role, dan mencatat login terakhir', async () => {
     const res = await service.login({ email: 'budi@dexa.local', password: 'Karyawan123!' });
-    expect(res.user).toEqual({ id: 1, email: 'budi@dexa.local', role: 'EMPLOYEE' });
+    expect(res.user).toEqual({ id: 1, email: 'budi@dexa.local', role: 'EMPLOYEE', mustChangePassword: false });
     expect(await jwt.verifyAsync(res.accessToken)).toMatchObject({ sub: 1, role: 'EMPLOYEE' });
     expect(users.rows[0].lastLoginAt).toBeInstanceOf(Date);
     expect(res.user).not.toHaveProperty('passwordHash');
@@ -38,8 +40,23 @@ describe('AuthService', () => {
   it('password salah dan email tidak dikenal memberi pesan yang sama (401)', async () => {
     const wrong = await rpcErrorOf(service.login({ email: 'budi@dexa.local', password: 'salah' }));
     const unknown = await rpcErrorOf(service.login({ email: 'siapa@dexa.local', password: 'salah' }));
-    expect(wrong).toEqual({ statusCode: 401, message: 'Email atau password salah' });
+    expect(wrong).toEqual({ statusCode: 401, message: 'Email/NIP atau password salah' });
     expect(unknown).toEqual(wrong);
+  });
+
+  it('login dengan userId (hasil pencocokan NIP di gateway)', async () => {
+    await expect(service.login({ userId: 1, password: 'Karyawan123!' })).resolves.toMatchObject({ user: { id: 1 } });
+    expect((await rpcErrorOf(service.login({ userId: 99, password: 'Karyawan123!' }))).statusCode).toBe(401);
+    expect((await rpcErrorOf(service.login({ password: 'Karyawan123!' }))).statusCode).toBe(401);
+  });
+
+  it('akun baru dengan password = NIP wajib ganti password; ganti password menghapus kewajiban itu', async () => {
+    const created = await service.createUser({ email: 'dewi@dexa.local', password: '20260045', role: Role.EMPLOYEE, mustChangePassword: true });
+    expect(created.mustChangePassword).toBe(true);
+    const { accessToken, user } = await service.login({ email: 'dewi@dexa.local', password: '20260045' });
+    expect(user.mustChangePassword).toBe(true);
+    await service.changePassword({ userId: user.id, currentPassword: '20260045', newPassword: 'Rahasia123' });
+    await expect(service.verify(accessToken)).resolves.toMatchObject({ mustChangePassword: false });
   });
 
   it('akun nonaktif tidak bisa login (403)', async () => {

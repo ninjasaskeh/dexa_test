@@ -13,7 +13,7 @@ function Count({ n }: { n?: number }) {
 /** HRD: tinjau pengajuan cuti/izin/sakit dan koreksi absen */
 export default function ApprovalsPage() {
   const [params, setParams] = useSearchParams()
-  const tab = params.get("tab") === "koreksi" ? "koreksi" : "cuti"
+  const tab = params.get("tab") === "corrections" ? "corrections" : "leave"
   const leave = usePendingCount("leave")
   const corrections = usePendingCount("corrections")
 
@@ -21,19 +21,19 @@ export default function ApprovalsPage() {
     <>
       <PageHeader
         title="Persetujuan"
-        description="Koreksi yang disetujui langsung mengubah jam absen karyawan. Anda tidak dapat memproses pengajuan Anda sendiri."
+        description="Tinjau pengajuan cuti, izin, sakit, dan koreksi absensi dari karyawan."
       />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })} className="gap-4">
         <TabsList>
-          <TabsTrigger value="cuti">Cuti / Izin / Sakit <Count n={leave.data} /></TabsTrigger>
-          <TabsTrigger value="koreksi">Koreksi absen <Count n={corrections.data} /></TabsTrigger>
+          <TabsTrigger value="leave">Cuti / Izin / Sakit <Count n={leave.data} /></TabsTrigger>
+          <TabsTrigger value="corrections">Koreksi absen <Count n={corrections.data} /></TabsTrigger>
         </TabsList>
-        <TabsContent value="cuti">
+        <TabsContent value="leave">
           <Card className="gap-0 overflow-hidden py-0">
             <CardContent className="px-0"><RequestsPanel kind="leave" scope="all" defaultStatus="PENDING" /></CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="koreksi">
+        <TabsContent value="corrections">
           <Card className="gap-0 overflow-hidden py-0">
             <CardContent className="px-0"><RequestsPanel kind="corrections" scope="all" defaultStatus="PENDING" /></CardContent>
           </Card>

@@ -18,23 +18,23 @@ function setup(url: string) {
 
 describe("useUrlFilters", () => {
   it("membaca filter dari URL dan mengubah angka jadi number", () => {
-    const { result } = setup("/karyawan?page=3&limit=20&status=active&from=2026-11-01&search=budi")
+    const { result } = setup("/employees?page=3&limit=20&status=active&from=2026-11-01&search=budi")
     expect(result.current.filters).toEqual({ page: 3, limit: 20, status: "active", from: "2026-11-01", search: "budi" })
   })
 
   it("nilai URL yang tidak valid diabaikan dan memakai default", () => {
-    const { result } = setup("/karyawan?page=abc&limit=999&status=hapus&from=kemarin")
+    const { result } = setup("/employees?page=abc&limit=999&status=hapus&from=kemarin")
     expect(result.current.filters).toEqual(DEFAULTS)
   })
 
   it("menulis perubahan ke URL, nilai default tidak ditulis, param lain tetap", () => {
-    const { result } = setup("/pengajuan?tab=koreksi&page=2")
+    const { result } = setup("/requests?tab=corrections&page=2")
     act(() => result.current.patch({ status: "inactive", page: 1 }))
-    expect(result.current.search).toBe("?tab=koreksi&status=inactive")
+    expect(result.current.search).toBe("?tab=corrections&status=inactive")
     act(() => result.current.patch({ status: "all", search: "rina" }))
-    expect(result.current.search).toBe("?tab=koreksi&search=rina")
+    expect(result.current.search).toBe("?tab=corrections&search=rina")
     act(() => result.current.patch({ search: undefined }))
-    expect(result.current.search).toBe("?tab=koreksi")
+    expect(result.current.search).toBe("?tab=corrections")
   })
 })
 

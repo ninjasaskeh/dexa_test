@@ -51,11 +51,11 @@ describe('sendRpc (gateway -> microservice)', () => {
 describe('withEmployees', () => {
   it('menempelkan data karyawan dengan satu panggilan untuk id unik', async () => {
     const client = fakeClient({
-      'employee.find_by_ids': ({ ids }) => ids.filter((id: number) => id !== 9).map((id: number) => ({ id, employeeCode: `E${id}`, fullName: `Nama ${id}`, department: 'IT', position: 'Dev', phone: 'rahasia' })),
+      'employee.find_by_ids': ({ ids }) => ids.filter((id: number) => id !== 9).map((id: number) => ({ id, nip: `E${id}`, fullName: `Nama ${id}`, department: 'IT', position: 'Dev', phone: 'rahasia' })),
     });
     const rows = await withEmployees(client, [{ employeeId: 1 }, { employeeId: 1 }, { employeeId: 9 }]);
     expect(client.calls).toEqual([{ pattern: 'employee.find_by_ids', data: { ids: [1, 9] } }]);
-    expect(rows[0].employee).toEqual({ id: 1, employeeCode: 'E1', fullName: 'Nama 1', department: 'IT', position: 'Dev' });
+    expect(rows[0].employee).toEqual({ id: 1, nip: 'E1', fullName: 'Nama 1', department: 'IT', position: 'Dev' });
     expect(rows[2].employee).toBeNull(); // karyawan sudah dihapus
   });
 

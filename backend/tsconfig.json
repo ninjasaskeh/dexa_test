@@ -10,14 +10,14 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": false,
     "skipLibCheck": true,
+    "types": ["node", "jest", "multer"],
     "strict": true,
     "strictPropertyInitialization": false,
     "paths": {
-      "@app/common": ["libs/common/src"],
-      "@app/common/*": ["libs/common/src/*"]
+      "@app/common": ["./libs/common/src"],
+      "@app/common/*": ["./libs/common/src/*"]
     }
   },
   "include": ["apps/**/*.ts", "libs/**/*.ts", "database/**/*.ts", "test/**/*.ts"],

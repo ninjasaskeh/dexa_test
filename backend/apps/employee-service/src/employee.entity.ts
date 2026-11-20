@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Department, Position } from './organization.entity';
 
 @Entity('employees')
 export class Employee {
@@ -9,17 +10,26 @@ export class Employee {
   @Column({ name: 'user_id', unsigned: true, unique: true })
   userId: number;
 
-  @Column({ name: 'employee_code', length: 20, unique: true })
-  employeeCode: string;
+  /** Diisi HRD, unik; password awal akun = NIP */
+  @Column({ length: 20, unique: true })
+  nip: string;
 
   @Column({ name: 'full_name', length: 120 })
   fullName: string;
 
-  @Column({ length: 80 })
-  position: string;
+  @Column({ name: 'department_id', unsigned: true })
+  departmentId: number;
 
-  @Column({ length: 80 })
-  department: string;
+  @ManyToOne(() => Department)
+  @JoinColumn({ name: 'department_id' })
+  department: Department;
+
+  @Column({ name: 'position_id', unsigned: true })
+  positionId: number;
+
+  @ManyToOne(() => Position)
+  @JoinColumn({ name: 'position_id' })
+  position: Position;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;

@@ -13,9 +13,9 @@ import { Logo } from "@/components/logo"
 import { loginSchema, type LoginValues } from "@/lib/schemas"
 
 const demoAccounts = [
-  { role: "Admin HRD", name: "Sari Wulandari", email: "hr@dexa.local", password: "Admin123!" },
-  { role: "Karyawan", name: "Budi Santoso", email: "budi@dexa.local", password: "Karyawan123!" },
-  { role: "Karyawan", name: "Rina Putri", email: "rina@dexa.local", password: "Karyawan123!" },
+  { role: "Admin HRD", name: "Sari Wulandari", email: "hr@dexa.local", nip: "20260001" },
+  { role: "Karyawan", name: "Budi Santoso", email: "budi@dexa.local", nip: "20260002" },
+  { role: "Karyawan", name: "Rina Putri", email: "rina@dexa.local", nip: "20260003" },
 ]
 
 /** Contoh kartu absen satu hari, untuk menjelaskan alur aplikasi tanpa ilustrasi generik */
@@ -57,7 +57,7 @@ export function LoginForm({
 }: Omit<React.ComponentProps<"div">, "onSubmit"> & { onLogin: (v: LoginValues) => Promise<void> }) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "" } })
+  const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { identifier: "", password: "" } })
 
   const submit = form.handleSubmit(async (v) => {
     setServerError(null)
@@ -81,7 +81,7 @@ export function LoginForm({
 
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
           <h1 className="text-2xl font-semibold">Masuk</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Gunakan email kantor yang didaftarkan HRD.</p>
+          <p className="text-muted-foreground mt-1 text-sm">Gunakan email kantor atau NIP yang terdaftar di HRD.</p>
 
           <form className="mt-8" onSubmit={submit} noValidate>
             <FieldGroup className="gap-5">
@@ -92,12 +92,12 @@ export function LoginForm({
                 </Alert>
               )}
               <Controller
-                name="email"
+                name="identifier"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="email">Email</FieldLabel>
-                    <Input {...field} id="email" type="email" autoComplete="email" placeholder="nama@dexa.local" className="h-10" aria-invalid={fieldState.invalid} />
+                    <FieldLabel htmlFor="identifier">Email atau NIP</FieldLabel>
+                    <Input {...field} id="identifier" autoComplete="username" autoCapitalize="none" placeholder="nama@dexa.local atau 20260045" className="h-10" aria-invalid={fieldState.invalid} />
                     {fieldState.error && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}
@@ -134,20 +134,21 @@ export function LoginForm({
                     type="button"
                     className="hover:bg-muted/60 flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg"
                     onClick={() => {
-                      form.setValue("email", a.email, { shouldValidate: true })
-                      form.setValue("password", a.password, { shouldValidate: true })
+                      // password awal akun demo = NIP (sebelum diganti saat login pertama)
+                      form.setValue("identifier", a.nip, { shouldValidate: true })
+                      form.setValue("password", a.nip, { shouldValidate: true })
                     }}
                   >
                     <span className="min-w-0">
                       <span className="block font-medium">{a.name}</span>
-                      <span className="text-muted-foreground block truncate text-xs">{a.email}</span>
+                      <span className="text-muted-foreground block truncate text-xs">NIP {a.nip} · {a.email}</span>
                     </span>
                     <span className="text-muted-foreground shrink-0 text-xs">{a.role}</span>
                   </button>
                 </li>
               ))}
             </ul>
-            <p className="text-muted-foreground mt-2 text-xs">Klik salah satu untuk mengisi form.</p>
+            <p className="text-muted-foreground mt-2 text-xs">Klik untuk mengisi form. Password awal akun adalah NIP.</p>
           </div>
         </div>
 
@@ -164,7 +165,7 @@ export function LoginForm({
         <div className="text-primary-foreground relative max-w-md space-y-2">
           <h2 className="text-3xl leading-tight font-semibold">Satu foto saat mulai, satu saat selesai.</h2>
           <p className="text-primary-foreground/75 text-sm leading-relaxed">
-            Jam dicatat oleh server, bukan perangkat Anda. HRD melihat kehadiran tim secara langsung.
+            Waktu absensi dicatat otomatis oleh sistem. HRD memantau kehadiran tim secara real-time.
           </p>
         </div>
       </div>

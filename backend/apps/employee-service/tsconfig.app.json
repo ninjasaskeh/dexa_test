@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": { "outDir": "../../dist/apps/employee-service" },
+  "compilerOptions": { "types": ["node", "multer"], "outDir": "../../dist/apps/employee-service" },
   "include": ["src/**/*", "../../libs/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "../../libs/**/*.spec.ts"]
 }

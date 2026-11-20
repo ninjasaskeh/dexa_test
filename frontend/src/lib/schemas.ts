@@ -6,7 +6,7 @@ import { z } from "zod"
 const emailField = z.string().trim().pipe(z.email("Format email tidak valid"))
 
 export const loginSchema = z.object({
-  email: emailField,
+  identifier: z.string().trim().min(1, "Email atau NIP wajib diisi"),
   password: z.string().min(1, "Password wajib diisi"),
 })
 export type LoginValues = z.infer<typeof loginSchema>
@@ -17,24 +17,32 @@ const passwordRule = z
   .regex(/[A-Z]/, "Password harus mengandung huruf besar")
   .regex(/[0-9]/, "Password harus mengandung angka")
 
-const baseEmployee = {
-  employeeCode: z.string().trim().min(3, "Kode karyawan minimal 3 karakter").max(20).regex(/^[A-Za-z0-9-]+$/, "Hanya huruf, angka, dan tanda -"),
+/** Sama dengan backend: NIP diisi HRD dan menjadi password awal karyawan */
+const nipField = z
+  .string()
+  .trim()
+  .regex(/^\d+$/, "NIP hanya boleh berisi angka")
+  .min(8, "NIP minimal 8 digit")
+  .max(20, "NIP maksimal 20 digit")
+
+/** Departemen & jabatan dipilih lewat Select (nilai string id) */
+export const employeeSchema = z.object({
+  nip: nipField,
   fullName: z.string().trim().min(3, "Nama minimal 3 karakter").max(120),
   email: emailField,
-  position: z.string().trim().min(2, "Jabatan wajib diisi").max(80),
-  department: z.string().trim().min(2, "Departemen wajib diisi").max(80),
+  departmentId: z.string().min(1, "Departemen wajib dipilih"),
+  positionId: z.string().min(1, "Jabatan wajib dipilih"),
   phone: z.union([z.literal(""), z.string().regex(/^(\+62|0)8[0-9]{7,12}$/, "Nomor HP tidak valid (contoh: 081234567890)")]),
   joinDate: z.string().min(1, "Tanggal bergabung wajib diisi"),
   role: z.enum(["EMPLOYEE", "HR_ADMIN"]),
   isActive: z.boolean(),
-}
-
-export const createEmployeeSchema = z.object({ ...baseEmployee, password: passwordRule })
-export const updateEmployeeSchema = z.object({
-  ...baseEmployee,
-  password: z.union([z.literal(""), passwordRule]),
 })
-export type EmployeeFormValues = z.infer<typeof updateEmployeeSchema>
+export type EmployeeFormValues = z.infer<typeof employeeSchema>
+
+const orgName = (label: string) => z.string().trim().min(2, `Nama ${label} minimal 2 karakter`).max(80, `Nama ${label} maksimal 80 karakter`)
+export const departmentSchema = z.object({ name: orgName("departemen") })
+export const positionSchema = z.object({ name: orgName("jabatan") })
+export type OrgNameValues = z.infer<typeof departmentSchema>
 
 export const attendanceSchema = z.object({
   photo: z
@@ -90,6 +98,7 @@ export type ReviewValues = z.infer<typeof reviewSchema>
 
 export const holidaySchema = z.object({
   date: z.string().min(1, "Tanggal wajib diisi"),
+  type: z.enum(["HOLIDAY", "LEAVE"]),
   name: z.string().trim().min(3, "Nama hari libur minimal 3 karakter").max(120),
 })
 export type HolidayValues = z.infer<typeof holidaySchema>

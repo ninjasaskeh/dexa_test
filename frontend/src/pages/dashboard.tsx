@@ -56,7 +56,7 @@ function NotCheckedInCard({ s, loading }: { s?: AttendanceSummary; loading: bool
     <Card className="gap-3">
       <CardHeader>
         <CardTitle>Belum check-in</CardTitle>
-        <CardDescription>{s ? (s.isWorkDay ? `${list.length} orang · per jam server` : s.holidayName ?? "Akhir pekan") : "Memuat…"}</CardDescription>
+        <CardDescription>{s ? (s.isWorkDay ? `${list.length} karyawan` : s.holidayName ?? "Akhir pekan") : "Memuat…"}</CardDescription>
       </CardHeader>
       <CardContent className="px-2">
         {loading ? (
@@ -77,7 +77,7 @@ function NotCheckedInCard({ s, loading }: { s?: AttendanceSummary; loading: bool
             {list.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-muted/60">
                 <EmployeeCell name={e.fullName} subtitle={`${e.position} · ${e.department}`} />
-                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{e.employeeCode}</span>
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{e.nip}</span>
               </li>
             ))}
           </ul>
@@ -106,7 +106,7 @@ function DepartmentsCard({ s }: { s?: AttendanceSummary }) {
     <Card className="gap-4">
       <CardHeader>
         <CardTitle>Per departemen</CardTitle>
-        <CardDescription>Hadir / total karyawan aktif</CardDescription>
+        <CardDescription>Kehadiran dibandingkan jumlah karyawan aktif</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!s && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-8" />)}
@@ -137,7 +137,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Kehadiran hari ini"
-        description={s ? `${fmtDateLong(s.date)} · ${s.isWorkDay ? `jam masuk ${s.workStartTime}` : s.holidayName ? `libur: ${s.holidayName}` : "bukan hari kerja"}` : "Memuat data…"}
+        description={s ? `${fmtDateLong(s.date)} · ${s.isWorkDay ? `Jam masuk ${s.workStartTime}` : s.holidayName ? `Hari libur: ${s.holidayName}` : "Bukan hari kerja"}` : "Memuat data…"}
         actions={
           <Button variant="outline" asChild>
             <Link to="/monitoring">Monitoring absensi <IconArrowRight /></Link>
@@ -156,7 +156,7 @@ export default function DashboardPage() {
         <Card className="gap-3">
           <CardHeader>
             <CardTitle>Aktivitas hari ini</CardTitle>
-            <CardDescription>Absen terbaru yang masuk</CardDescription>
+            <CardDescription>Absensi terbaru hari ini</CardDescription>
             <CardAction>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/monitoring">Lihat semua</Link>

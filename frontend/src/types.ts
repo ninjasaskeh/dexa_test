@@ -6,16 +6,21 @@ export type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
 export interface Employee {
   id: number
   userId: number
-  employeeCode: string
+  /** diisi HRD, juga password awal akun */
+  nip: string
   fullName: string
-  position: string
+  departmentId: number
   department: string
+  positionId: number
+  position: string
   phone: string | null
   joinDate: string
   isActive: boolean
   email?: string | null
   role?: Role | null
   lastLoginAt?: string | null
+  /** true = password masih NIP (belum diganti karyawan) */
+  mustChangePassword?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -24,7 +29,32 @@ export interface CurrentUser {
   id: number
   email: string
   role: Role
+  /** true = wajib ganti password (masih NIP) sebelum bisa memakai aplikasi */
+  mustChangePassword: boolean
   employee: Employee | null
+}
+
+export interface Position {
+  id: number
+  name: string
+  isActive: boolean
+  /** jumlah karyawan aktif */
+  employeeCount: number
+}
+
+/** Baris halaman Jabatan: jabatan + departemennya */
+export interface PositionRow extends Position {
+  departmentId: number
+  department: string
+  departmentActive: boolean
+}
+
+export interface Department {
+  id: number
+  name: string
+  isActive: boolean
+  employeeCount: number
+  positions: Position[]
 }
 
 export interface Attendance {
@@ -39,7 +69,7 @@ export interface Attendance {
   /** terisi bila jam absen ini hasil koreksi */
   correctionId: number | null
   isLate: boolean
-  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "department" | "position"> | null
+  employee?: Pick<Employee, "id" | "nip" | "fullName" | "department" | "position"> | null
 }
 
 export interface Paginated<T> {
@@ -68,7 +98,7 @@ export interface TodayAttendance extends ServerClock {
   checkOut: Attendance | null
 }
 
-export type EmployeeLite = Pick<Employee, "id" | "employeeCode" | "fullName" | "department" | "position">
+export type EmployeeLite = Pick<Employee, "id" | "nip" | "fullName" | "department" | "position">
 
 export interface AttendanceSummary extends ServerClock {
   date: string
@@ -94,14 +124,17 @@ export interface EmployeeStats {
   total: number
   active: number
   inactive: number
-  departments: string[]
   byDepartment: { department: string; count: number }[]
 }
+
+export type HolidayType = "HOLIDAY" | "LEAVE"
 
 export interface Holiday {
   id: number
   date: string
   name: string
+  /** HOLIDAY = libur nasional / perusahaan, LEAVE = cuti bersama */
+  type: HolidayType
   /** SYNC = dari sumber online (HOLIDAY_SYNC_URL), MANUAL = ditambah HRD */
   source: "MANUAL" | "SYNC"
   /** false = disembunyikan, tidak dihitung sebagai libur */
@@ -120,6 +153,8 @@ export interface HolidaySyncResult {
 
 export interface HolidayList {
   year: number
+  /** tanggal hari ini menurut server */
+  today: string
   /** hari kerja mingguan, 1 = Senin ... 7 = Minggu */
   workDays: number[]
   sync: { enabled: boolean; url: string | null; last: HolidaySyncResult | null }

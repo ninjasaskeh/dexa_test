@@ -1,14 +1,15 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import type { HolidayValues } from "@/lib/schemas"
 import type {
-  Attendance, AttendanceSummary, AttendanceType, CorrectionRequest, Employee, EmployeeStats, HolidayList, LeaveRequest,
-  HolidaySyncResult, MonthlyRecap, Paginated, RequestStatus, TodayAttendance,
+  Attendance, AttendanceSummary, AttendanceType, CorrectionRequest, Department, Employee, PositionRow, EmployeeStats, HolidayList, LeaveRequest,
+  Holiday, HolidaySyncResult, MonthlyRecap, Paginated, RequestStatus, TodayAttendance,
 } from "@/types"
 
 const clean = (o: object) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== "" && v !== undefined && v !== null && v !== "all"))
 
 /* ---------- Karyawan (HRD) ---------- */
-export interface EmployeeFilters { page: number; limit: number; search?: string; department?: string; status?: string }
+export interface EmployeeFilters { page: number; limit: number; search?: string; departmentId?: string; status?: string }
 
 export const useEmployees = (f: EmployeeFilters) =>
   useQuery({
@@ -35,6 +36,40 @@ export function useToggleEmployee() {
     mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) =>
       (await api.patch<Employee>(`/employees/${id}`, { isActive })).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  })
+}
+
+/* ---------- Departemen & jabatan (HRD) ---------- */
+export const useDepartments = () =>
+  useQuery({ queryKey: ["departments"], queryFn: async () => (await api.get<Department[]>("/departments")).data })
+
+export const usePositions = () =>
+  useQuery({ queryKey: ["positions"], queryFn: async () => (await api.get<PositionRow[]>("/positions")).data })
+
+/** Perubahan departemen/jabatan ikut memengaruhi daftar karyawan (nama departemen/jabatan) */
+function useInvalidateOrg() {
+  const qc = useQueryClient()
+  return () =>
+    Promise.all(["departments", "positions", "employees"].map((k) => qc.invalidateQueries({ queryKey: [k] })))
+}
+
+type OrgKind = "departments" | "positions"
+
+/** Tambah (tanpa id) atau ubah (dengan id) departemen / jabatan */
+export function useSaveOrg(kind: OrgKind) {
+  const invalidate = useInvalidateOrg()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id?: number; data: Record<string, unknown> }) =>
+      (id ? await api.patch(`/${kind}/${id}`, data) : await api.post(`/${kind}`, data)).data,
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteOrg(kind: OrgKind) {
+  const invalidate = useInvalidateOrg()
+  return useMutation({
+    mutationFn: async (id: number) => (await api.delete(`/${kind}/${id}`)).data,
+    onSuccess: invalidate,
   })
 }
 
@@ -125,7 +160,7 @@ function useInvalidateCalendar() {
 export function useCreateHoliday() {
   const invalidate = useInvalidateCalendar()
   return useMutation({
-    mutationFn: async (data: { date: string; name: string }) => (await api.post("/holidays", data)).data,
+    mutationFn: async (data: HolidayValues) => (await api.post<Holiday>("/holidays", data)).data,
     onSuccess: invalidate,
   })
 }

@@ -1,4 +1,5 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type { HolidayType } from '@app/common';
 
 @Entity('holidays')
 export class Holiday {
@@ -10,6 +11,10 @@ export class Holiday {
 
   @Column({ length: 120 })
   name: string;
+
+  /** HOLIDAY = libur nasional / perusahaan, LEAVE = cuti bersama. Keduanya tidak dihitung hari kerja. */
+  @Column({ type: 'enum', enum: ['HOLIDAY', 'LEAVE'], default: 'HOLIDAY' })
+  type: HolidayType;
 
   /** SYNC = dari HOLIDAY_SYNC_URL, MANUAL = ditambah HRD */
   @Column({ type: 'enum', enum: ['MANUAL', 'SYNC'], default: 'MANUAL' })

@@ -1,11 +1,17 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { CreateEmployeeDto, ListEmployeeQuery, PATTERNS, UpdateEmployeeDto } from '@app/common';
+import {
+  CreateDepartmentDto, CreateEmployeeDto, CreatePositionDto, ListEmployeeQuery, PATTERNS, PositionQuery, UpdateDepartmentDto, UpdateEmployeeDto, UpdatePositionDto,
+} from '@app/common';
 import { EmployeeService } from './employee.service';
+import { OrganizationService } from './organization.service';
 
 @Controller()
 export class EmployeeController {
-  constructor(private readonly service: EmployeeService) {}
+  constructor(
+    private readonly service: EmployeeService,
+    private readonly org: OrganizationService,
+  ) {}
 
   @MessagePattern(PATTERNS.EMPLOYEE.CREATE)
   create(@Payload() dto: CreateEmployeeDto) {
@@ -25,6 +31,11 @@ export class EmployeeController {
   @MessagePattern(PATTERNS.EMPLOYEE.FIND_BY_USER)
   findByUser(@Payload() data: { userId: number }) {
     return this.service.findByUser(data.userId);
+  }
+
+  @MessagePattern(PATTERNS.EMPLOYEE.FIND_BY_NIP)
+  findByNip(@Payload() data: { nip: string }) {
+    return this.service.findByNip(data.nip);
   }
 
   @MessagePattern(PATTERNS.EMPLOYEE.FIND_BY_IDS)
@@ -50,5 +61,45 @@ export class EmployeeController {
   @MessagePattern(PATTERNS.EMPLOYEE.STATS)
   stats() {
     return this.service.stats();
+  }
+
+  @MessagePattern(PATTERNS.DEPARTMENT.LIST)
+  listDepartments() {
+    return this.org.list();
+  }
+
+  @MessagePattern(PATTERNS.DEPARTMENT.CREATE)
+  createDepartment(@Payload() dto: CreateDepartmentDto) {
+    return this.org.createDepartment(dto);
+  }
+
+  @MessagePattern(PATTERNS.DEPARTMENT.UPDATE)
+  updateDepartment(@Payload() data: { id: number; dto: UpdateDepartmentDto }) {
+    return this.org.updateDepartment(data.id, data.dto);
+  }
+
+  @MessagePattern(PATTERNS.DEPARTMENT.DELETE)
+  deleteDepartment(@Payload() data: { id: number }) {
+    return this.org.deleteDepartment(data.id);
+  }
+
+  @MessagePattern(PATTERNS.POSITION.LIST)
+  listPositions(@Payload() q: PositionQuery) {
+    return this.org.listPositions(q);
+  }
+
+  @MessagePattern(PATTERNS.POSITION.CREATE)
+  createPosition(@Payload() dto: CreatePositionDto) {
+    return this.org.createPosition(dto);
+  }
+
+  @MessagePattern(PATTERNS.POSITION.UPDATE)
+  updatePosition(@Payload() data: { id: number; dto: UpdatePositionDto }) {
+    return this.org.updatePosition(data.id, data.dto);
+  }
+
+  @MessagePattern(PATTERNS.POSITION.DELETE)
+  deletePosition(@Payload() data: { id: number }) {
+    return this.org.deletePosition(data.id);
   }
 }

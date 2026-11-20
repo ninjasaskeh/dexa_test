@@ -19,17 +19,29 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Ip() ip: string, @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto) {
-    await this.limiter.assertAllowed(ip, dto.email);
+    const { identifier, password } = dto;
+    await this.limiter.assertAllowed(ip, identifier);
     let result: { accessToken: string; user: AuthUser };
     try {
-      result = await sendRpc(this.auth, PATTERNS.AUTH.LOGIN, dto);
+      result = await sendRpc(this.auth, PATTERNS.AUTH.LOGIN, { ...(await this.credentialOf(identifier)), password });
     } catch (e) {
-      if (e instanceof HttpException && e.getStatus() === HttpStatus.UNAUTHORIZED) await this.limiter.recordFailure(ip, dto.email);
+      if (e instanceof HttpException && e.getStatus() === HttpStatus.UNAUTHORIZED) await this.limiter.recordFailure(ip, identifier);
       throw e;
     }
-    await this.limiter.reset(dto.email);
+    await this.limiter.reset(identifier);
     const employee = await sendRpc(this.employees, PATTERNS.EMPLOYEE.FIND_BY_USER, { userId: result.user.id }).catch(() => null);
     return { ...result, user: { ...result.user, employee } };
+  }
+
+  /** Email dikirim apa adanya; NIP dicocokkan dulu ke userId lewat employee-service */
+  private async credentialOf(identifier: string): Promise<{ email: string } | { userId: number }> {
+    if (identifier.includes('@')) return { email: identifier };
+    const emp = await sendRpc<{ userId: number }>(this.employees, PATTERNS.EMPLOYEE.FIND_BY_NIP, { nip: identifier }).catch((e) => {
+      // NIP tidak dikenal diperlakukan sama dengan password salah, agar NIP yang ada tidak bisa ditebak
+      if (e instanceof HttpException && e.getStatus() === HttpStatus.NOT_FOUND) throw new HttpException('Email/NIP atau password salah', HttpStatus.UNAUTHORIZED);
+      throw e;
+    });
+    return { userId: emp.userId };
   }
 
   @Get('me')

@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { AuthUser, JwtPayload, LoginDto, Role, rpcError } from '@app/common';
+import { AuthUser, JwtPayload, Role, rpcError } from '@app/common';
 import { User } from './user.entity';
 
 @Injectable()
@@ -14,17 +14,18 @@ export class AuthService {
   ) {}
 
   private toAuthUser(u: User): AuthUser {
-    return { id: u.id, email: u.email, role: u.role };
+    return { id: u.id, email: u.email, role: u.role, mustChangePassword: u.mustChangePassword };
   }
 
   private findWithPassword(where: Partial<User>) {
     return this.users.createQueryBuilder('u').addSelect('u.passwordHash').where(where).getOne();
   }
 
-  async login({ email, password }: LoginDto) {
-    const user = await this.findWithPassword({ email });
+  /** Login dengan email, atau userId (gateway sudah mencocokkan NIP ke userId lewat employee-service) */
+  async login({ email, userId, password }: { email?: string; userId?: number; password: string }) {
+    const user = email ? await this.findWithPassword({ email }) : userId ? await this.findWithPassword({ id: userId }) : null;
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      rpcError(HttpStatus.UNAUTHORIZED, 'Email atau password salah');
+      rpcError(HttpStatus.UNAUTHORIZED, 'Email/NIP atau password salah');
     }
     if (!user.isActive) rpcError(HttpStatus.FORBIDDEN, 'Akun Anda dinonaktifkan. Hubungi HRD.');
 
@@ -46,15 +47,15 @@ export class AuthService {
     return this.toAuthUser(user);
   }
 
-  async createUser(data: { email: string; password: string; role: Role }) {
+  async createUser(data: { email: string; password: string; role: Role; mustChangePassword?: boolean }) {
     if (await this.users.existsBy({ email: data.email })) rpcError(HttpStatus.CONFLICT, 'Email sudah terdaftar');
     const user = await this.users.save(
-      this.users.create({ email: data.email, role: data.role, passwordHash: await bcrypt.hash(data.password, 10) }),
+      this.users.create({ email: data.email, role: data.role, passwordHash: await bcrypt.hash(data.password, 10), mustChangePassword: data.mustChangePassword ?? false }),
     );
     return this.toAuthUser(user);
   }
 
-  async updateUser(data: { id: number; email?: string; password?: string; role?: Role; isActive?: boolean }) {
+  async updateUser(data: { id: number; email?: string; password?: string; role?: Role; isActive?: boolean; mustChangePassword?: boolean }) {
     const user = await this.users.findOneBy({ id: data.id });
     if (!user) rpcError(HttpStatus.NOT_FOUND, 'User tidak ditemukan');
     if (data.email && data.email !== user.email && (await this.users.existsBy({ email: data.email }))) {
@@ -65,6 +66,7 @@ export class AuthService {
     if (data.role) patch.role = data.role;
     if (data.isActive !== undefined) patch.isActive = data.isActive;
     if (data.password) patch.passwordHash = await bcrypt.hash(data.password, 10);
+    if (data.mustChangePassword !== undefined) patch.mustChangePassword = data.mustChangePassword;
     if (Object.keys(patch).length) await this.users.update(user.id, patch);
     return this.toAuthUser({ ...user, ...patch } as User);
   }
@@ -80,7 +82,7 @@ export class AuthService {
     if (!(await bcrypt.compare(data.currentPassword, user.passwordHash))) {
       rpcError(HttpStatus.BAD_REQUEST, 'Password lama salah');
     }
-    await this.users.update(user.id, { passwordHash: await bcrypt.hash(data.newPassword, 10) });
+    await this.users.update(user.id, { passwordHash: await bcrypt.hash(data.newPassword, 10), mustChangePassword: false });
     return { success: true };
   }
 

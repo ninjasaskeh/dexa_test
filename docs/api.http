@@ -9,14 +9,14 @@ GET {{base}}/health
 POST {{base}}/auth/login
 Content-Type: application/json
 
-{ "email": "hr@dexa.local", "password": "Admin123!" }
+{ "identifier": "hr@dexa.local", "password": "20260001" }
 
 ### Login Karyawan
 # @name emp
 POST {{base}}/auth/login
 Content-Type: application/json
 
-{ "email": "budi@dexa.local", "password": "Karyawan123!" }
+{ "identifier": "20260002", "password": "20260002" }
 
 ### Profil saya
 GET {{base}}/auth/me
@@ -54,18 +54,39 @@ Authorization: Bearer {{emp.response.body.accessToken}}
 GET {{base}}/employees?page=1&limit=10&search=budi
 Authorization: Bearer {{hr.response.body.accessToken}}
 
-### [HRD] Tambah karyawan
+### [HRD] Departemen & jabatan (id dipakai saat tambah karyawan)
+GET {{base}}/departments
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Tambah departemen
+POST {{base}}/departments
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "name": "Marketing" }
+
+### [HRD] Daftar jabatan (opsional ?departmentId=1)
+GET {{base}}/positions
+Authorization: Bearer {{hr.response.body.accessToken}}
+
+### [HRD] Tambah jabatan di departemen
+POST {{base}}/positions
+Authorization: Bearer {{hr.response.body.accessToken}}
+Content-Type: application/json
+
+{ "departmentId": 1, "name": "Marketing Staff" }
+
+### [HRD] Tambah karyawan (NIP angka min. 8 digit; password awal = NIP)
 POST {{base}}/employees
 Authorization: Bearer {{hr.response.body.accessToken}}
 Content-Type: application/json
 
 {
+  "nip": "20260045",
   "fullName": "Andi Pratama",
-  "employeeCode": "EMP-010",
   "email": "andi@dexa.local",
-  "password": "Karyawan123!",
-  "position": "QA Engineer",
-  "department": "IT",
+  "departmentId": 1,
+  "positionId": 1,
   "phone": "081311112222",
   "joinDate": "2026-01-05",
   "role": "EMPLOYEE"
@@ -76,7 +97,7 @@ PATCH {{base}}/employees/4
 Authorization: Bearer {{hr.response.body.accessToken}}
 Content-Type: application/json
 
-{ "position": "Senior QA Engineer" }
+{ "fullName": "Andi Pratama Putra" }
 
 ### [HRD] Nonaktifkan karyawan
 DELETE {{base}}/employees/4
@@ -94,16 +115,16 @@ Authorization: Bearer {{hr.response.body.accessToken}}
 GET {{base}}/attendance/1/photo
 Authorization: Bearer {{emp.response.body.accessToken}}
 
-### [HRD] Export monitoring ke CSV (filter sama dengan monitoring, tanpa paginasi)
-GET {{base}}/attendance/export?from=2026-11-01&to=2026-11-30
+### [HRD] Export monitoring ke Excel (format=csv untuk CSV; filter sama dengan monitoring, tanpa paginasi)
+GET {{base}}/attendance/export?format=xlsx&from=2026-11-01&to=2026-11-30
 Authorization: Bearer {{hr.response.body.accessToken}}
 
 ### [HRD] Rekap bulanan (month kosong = bulan berjalan menurut server)
 GET {{base}}/attendance/recap?month=2026-11
 Authorization: Bearer {{hr.response.body.accessToken}}
 
-### [HRD] Export rekap bulanan ke CSV
-GET {{base}}/attendance/recap/export?month=2026-11
+### [HRD] Export rekap bulanan ke Excel
+GET {{base}}/attendance/recap/export?format=xlsx&month=2026-11
 Authorization: Bearer {{hr.response.body.accessToken}}
 
 ### Daftar hari libur

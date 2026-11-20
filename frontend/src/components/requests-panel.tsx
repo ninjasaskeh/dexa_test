@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCancelRequest, useRequests, type RequestFilters, type RequestKind } from "@/hooks/queries"
 import { PAGE_LIMITS, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
 import { getErrorMessage } from "@/lib/api"
+import { rowNo } from "@/lib/utils"
 import { fmtDate, fmtDateTime, fmtTime } from "@/lib/format"
 import type { CorrectionRequest, LeaveRequest, RequestStatus } from "@/types"
 
@@ -77,6 +78,7 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
   }
 
   const headers = [
+    "No",
     ...(isHr ? ["Karyawan"] : []),
     ...(kind === "leave" ? ["Jenis", "Tanggal"] : ["Tanggal", "Tipe", "Jam"]),
     "Alasan", "Status", "",
@@ -103,7 +105,7 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
       <div className="border-y">
         <Table>
           <TableHeader className="bg-muted/40">
-            <TableRow>{headers.map((h, i) => <TableHead key={i}>{h}</TableHead>)}</TableRow>
+            <TableRow>{headers.map((h, i) => <TableHead key={i} className={i === 0 ? "w-12 text-center" : undefined}>{h}</TableHead>)}</TableRow>
           </TableHeader>
           <TableBody>
             {q.isLoading ? (
@@ -113,13 +115,14 @@ export function RequestsPanel({ kind, scope, defaultStatus = "all", toolbar }: {
             ) : q.data?.data.length === 0 ? (
               <TableMessage cols={cols} title="Belum ada pengajuan" description={filters.status && filters.status !== "all" ? "Coba ubah filter status." : undefined} />
             ) : (
-              q.data?.data.map((it) => {
+              q.data?.data.map((it, i) => {
                 const title = it.employee?.fullName ?? "Pengajuan"
                 return (
                   <TableRow key={it.id}>
+                    <TableCell className="text-muted-foreground w-12 text-center tabular-nums">{rowNo(i, q.data?.meta)}</TableCell>
                     {isHr && (
                       <TableCell>
-                        <EmployeeCell name={it.employee?.fullName ?? "(karyawan dihapus)"} subtitle={it.employee ? `${it.employee.employeeCode} · ${it.employee.department}` : undefined} />
+                        <EmployeeCell name={it.employee?.fullName ?? "(karyawan dihapus)"} subtitle={it.employee ? `${it.employee.nip} · ${it.employee.department}` : undefined} />
                       </TableCell>
                     )}
                     {kind === "leave" ? (

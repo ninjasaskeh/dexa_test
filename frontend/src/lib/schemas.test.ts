@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { correctionSchema, createEmployeeSchema, leaveSchema, loginSchema, reviewSchema, updateEmployeeSchema } from "./schemas"
+import { correctionSchema, employeeSchema, leaveSchema, loginSchema, positionSchema, reviewSchema } from "./schemas"
 
 /** Pesan pertama per field, sama seperti yang ditampilkan form */
 function fieldErrors(r: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) {
@@ -10,28 +10,39 @@ function fieldErrors(r: { success: boolean; error?: { issues: { path: PropertyKe
 
 /* Aturan di sini harus sama dengan backend (libs/common/src/schemas) agar error muncul sebelum request dikirim */
 describe("schema form (selaras dengan backend)", () => {
-  it("login: email di-trim, password wajib", () => {
-    expect(loginSchema.safeParse({ email: " budi@dexa.local ", password: "x" }).success).toBe(true)
-    expect(fieldErrors(loginSchema.safeParse({ email: "budi", password: "" }))).toEqual({
-      email: "Format email tidak valid",
+  it("login: email atau NIP wajib, password wajib", () => {
+    expect(loginSchema.safeParse({ identifier: " 20260045 ", password: "x" }).success).toBe(true)
+    expect(fieldErrors(loginSchema.safeParse({ identifier: " ", password: "" }))).toEqual({
+      identifier: "Email atau NIP wajib diisi",
       password: "Password wajib diisi",
     })
   })
 
   const employee = {
-    employeeCode: "EMP-010", fullName: "Dewi Lestari", email: "dewi@dexa.local", position: "Analyst", department: "Finance",
+    nip: "20260045", fullName: "Dewi Lestari", email: "dewi@dexa.local", departmentId: "1", positionId: "3",
     phone: "", joinDate: "2026-11-01", role: "EMPLOYEE" as const, isActive: true,
   }
 
-  it("karyawan baru wajib password kuat, edit boleh kosong", () => {
-    expect(fieldErrors(createEmployeeSchema.safeParse({ ...employee, password: "lemah" }))).toHaveProperty("password", "Password minimal 8 karakter")
-    expect(createEmployeeSchema.safeParse({ ...employee, password: "Rahasia123" }).success).toBe(true)
-    expect(updateEmployeeSchema.safeParse({ ...employee, password: "" }).success).toBe(true)
+  it("karyawan: NIP angka minimal 8 digit, tanpa field password", () => {
+    expect(employeeSchema.safeParse(employee).success).toBe(true)
+    expect(fieldErrors(employeeSchema.safeParse({ ...employee, nip: "2026045" }))).toEqual({ nip: "NIP minimal 8 digit" })
+    expect(fieldErrors(employeeSchema.safeParse({ ...employee, nip: "EMP-0045" }))).toEqual({ nip: "NIP hanya boleh berisi angka" })
+  })
+
+  it("karyawan: departemen & jabatan wajib dipilih", () => {
+    expect(fieldErrors(employeeSchema.safeParse({ ...employee, departmentId: "", positionId: "" }))).toEqual({
+      departmentId: "Departemen wajib dipilih",
+      positionId: "Jabatan wajib dipilih",
+    })
   })
 
   it("nomor HP format Indonesia atau kosong", () => {
-    expect(createEmployeeSchema.safeParse({ ...employee, password: "Rahasia123", phone: "081234567890" }).success).toBe(true)
-    expect(fieldErrors(createEmployeeSchema.safeParse({ ...employee, password: "Rahasia123", phone: "12345" }))).toHaveProperty("phone")
+    expect(employeeSchema.safeParse({ ...employee, phone: "081234567890" }).success).toBe(true)
+    expect(fieldErrors(employeeSchema.safeParse({ ...employee, phone: "12345" }))).toHaveProperty("phone")
+  })
+
+  it("nama jabatan minimal 2 karakter", () => {
+    expect(fieldErrors(positionSchema.safeParse({ name: "A" }))).toEqual({ name: "Nama jabatan minimal 2 karakter" })
   })
 
   it("cuti: selesai tidak sebelum mulai, maksimal 31 hari", () => {

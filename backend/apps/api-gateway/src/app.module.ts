@@ -8,6 +8,7 @@ import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { LoginLimiter } from './auth/login-limiter';
 import { EmployeesController } from './employees/employees.controller';
+import { OrganizationController } from './employees/organization.controller';
 import { HealthController } from './health.controller';
 import { CorrectionsController } from './requests/corrections.controller';
 import { HolidaysController } from './requests/holidays.controller';
@@ -20,7 +21,7 @@ import { LeaveController } from './requests/leave.controller';
     registerServiceClients(AUTH_SERVICE, EMPLOYEE_SERVICE, ATTENDANCE_SERVICE, LEAVE_SERVICE),
     MulterModule.registerAsync({ useFactory: multerOptions }),
   ],
-  controllers: [HealthController, AuthController, EmployeesController, AttendanceController, HolidaysController, LeaveController, CorrectionsController],
+  controllers: [HealthController, AuthController, EmployeesController, OrganizationController, AttendanceController, HolidaysController, LeaveController, CorrectionsController],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }, LoginLimiter],
 })
 export class AppModule {}

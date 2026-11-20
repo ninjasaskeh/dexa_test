@@ -164,7 +164,7 @@ export class AttendanceService {
       if (presentIds.has(e.id)) d.present += 1;
       departments.set(e.department, d);
     }
-    const lite = ({ id, employeeCode, fullName, department, position }: ActiveEmployee): EmployeeLite => ({ id, employeeCode, fullName, department, position });
+    const lite = ({ id, nip, fullName, department, position }: ActiveEmployee): EmployeeLite => ({ id, nip, fullName, department, position });
     const onLeave = active
       .filter((e) => leaveByEmployee.has(e.id) && !presentIds.has(e.id))
       .map((e) => ({ ...lite(e), leaveType: leaveByEmployee.get(e.id)! }));

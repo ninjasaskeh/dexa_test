@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { LoginDto, PATTERNS, Role } from '@app/common';
+import { PATTERNS, Role } from '@app/common';
 import { AuthService } from './auth.service';
 
 @Controller()
@@ -8,7 +8,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @MessagePattern(PATTERNS.AUTH.LOGIN)
-  login(@Payload() dto: LoginDto) {
+  login(@Payload() dto: { email?: string; userId?: number; password: string }) {
     return this.auth.login(dto);
   }
 
@@ -18,12 +18,12 @@ export class AuthController {
   }
 
   @MessagePattern(PATTERNS.AUTH.CREATE_USER)
-  createUser(@Payload() data: { email: string; password: string; role: Role }) {
+  createUser(@Payload() data: { email: string; password: string; role: Role; mustChangePassword?: boolean }) {
     return this.auth.createUser(data);
   }
 
   @MessagePattern(PATTERNS.AUTH.UPDATE_USER)
-  updateUser(@Payload() data: { id: number; email?: string; password?: string; role?: Role; isActive?: boolean }) {
+  updateUser(@Payload() data: { id: number; email?: string; password?: string; role?: Role; isActive?: boolean; mustChangePassword?: boolean }) {
     return this.auth.updateUser(data);
   }
 

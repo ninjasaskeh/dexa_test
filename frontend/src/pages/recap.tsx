@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
+import { useMemo } from "react"
 import { addMonths, format, parseISO } from "date-fns"
 import { id } from "date-fns/locale"
-import { IconChevronLeft, IconChevronRight, IconDownload, IconSearch } from "@tabler/icons-react"
+import { IconChevronLeft, IconChevronRight, IconSearch } from "@tabler/icons-react"
 import { EmployeeCell } from "@/components/employee-cell"
+import { ExportMenu } from "@/components/export-menu"
 import { PageHeader } from "@/components/page-header"
 import { Progress } from "@/components/progress"
 import { TableMessage, TableSkeletonRows } from "@/components/table-state"
@@ -12,16 +12,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useMonthlyRecap } from "@/hooks/queries"
 import { MONTH_RE, useSearchInput, useUrlFilters } from "@/hooks/use-url-filters"
-import { downloadFile, getErrorMessage } from "@/lib/api"
+import { getErrorMessage } from "@/lib/api"
 import { fmtDate } from "@/lib/format"
-import { cn } from "@/lib/utils"
+import { cn, rowNo } from "@/lib/utils"
 import type { RecapRow } from "@/types"
 
-const COLS = 11
+const COLS = 12
 const DEFAULTS: { month?: string; search?: string; department: string } = { month: undefined, search: undefined, department: "all" }
 const RULES = { month: MONTH_RE }
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
@@ -46,14 +45,13 @@ export default function RecapPage() {
   const q = useMonthlyRecap(month)
   const r = q.data
   const [search, setSearch] = useSearchInput(filters.search, (s) => patch({ search: s }))
-  const [exporting, setExporting] = useState(false)
 
   const departments = useMemo(() => [...new Set(r?.data.map((d) => d.employee.department))].sort(), [r])
   const rows = useMemo(() => {
     const s = (filters.search ?? "").toLowerCase()
     return (r?.data ?? [])
       .filter((d) => department === "all" || d.employee.department === department)
-      .filter((d) => !s || [d.employee.fullName, d.employee.employeeCode, d.employee.position].some((v) => v.toLowerCase().includes(s)))
+      .filter((d) => !s || [d.employee.fullName, d.employee.nip, d.employee.position].some((v) => v.toLowerCase().includes(s)))
       .sort((a, b) => b.absent - a.absent || a.employee.fullName.localeCompare(b.employee.fullName))
   }, [r, filters.search, department])
 
@@ -63,23 +61,11 @@ export default function RecapPage() {
   )
   const current = r?.today.slice(0, 7)
 
-  const exportCsv = async () => {
-    if (!r) return
-    setExporting(true)
-    try {
-      await downloadFile("/attendance/recap/export", { month: r.month }, `rekap_absensi_${r.month}.csv`)
-    } catch (e) {
-      toast.error("Export gagal", { description: getErrorMessage(e) })
-    } finally {
-      setExporting(false)
-    }
-  }
-
   return (
     <>
       <PageHeader
         title="Rekap Bulanan"
-        description={r ? `Kehadiran karyawan aktif ${fmtDate(r.from)} – ${fmtDate(r.to)} · jam masuk ${r.workStartTime}` : "Memuat data…"}
+        description={r ? `Periode ${fmtDate(r.from)} – ${fmtDate(r.to)} · Karyawan aktif · Jam masuk ${r.workStartTime}` : "Memuat data…"}
         actions={
           <>
             <div className="flex items-center gap-1 rounded-md border p-0.5">
@@ -91,9 +77,7 @@ export default function RecapPage() {
                 <IconChevronRight />
               </Button>
             </div>
-            <Button variant="outline" onClick={exportCsv} disabled={!r || exporting}>
-              {exporting ? <Spinner /> : <IconDownload />} Export CSV
-            </Button>
+            <ExportMenu url="/attendance/recap/export" params={{ month: r?.month }} fallbackName={`rekap_absensi_${r?.month ?? ""}`} disabled={!r} />
           </>
         }
       />
@@ -143,6 +127,7 @@ export default function RecapPage() {
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
+                  <TableHead className="w-12 text-center">No</TableHead>
                   <TableHead>Karyawan</TableHead>
                   <TableHead className="text-right">Hari kerja</TableHead>
                   <TableHead className="text-right">Hadir</TableHead>
@@ -164,9 +149,10 @@ export default function RecapPage() {
                 ) : rows.length === 0 ? (
                   <TableMessage cols={COLS} title="Tidak ada karyawan" description="Coba ubah kata kunci atau departemen." />
                 ) : (
-                  rows.map((d) => (
+                  rows.map((d, i) => (
                     <TableRow key={d.employee.id}>
-                      <TableCell><EmployeeCell name={d.employee.fullName} subtitle={`${d.employee.employeeCode} · ${d.employee.department}`} /></TableCell>
+                      <TableCell className="text-muted-foreground w-12 text-center tabular-nums">{rowNo(i)}</TableCell>
+                      <TableCell><EmployeeCell name={d.employee.fullName} subtitle={`${d.employee.nip} · ${d.employee.department}`} /></TableCell>
                       <TableCell className="text-right"><Num n={d.workDays} /></TableCell>
                       <TableCell className="text-right"><Num n={d.present} /></TableCell>
                       <TableCell className="text-right"><Num n={d.late} tone="warning" /></TableCell>
@@ -194,7 +180,7 @@ export default function RecapPage() {
             </Table>
           </div>
           <p className="text-muted-foreground px-5 py-3 text-xs leading-relaxed">
-            Hari kerja dihitung sejak tanggal bergabung, sampai hari ini menurut jam server. Hari ini baru dihitung setelah karyawan check-in atau bila sedang cuti.
+            Hari kerja dihitung sejak tanggal bergabung hingga hari ini. Hari ini dihitung setelah karyawan melakukan check-in atau sedang cuti.
             Alpa = hari kerja tanpa check-in dan tanpa cuti/izin/sakit yang disetujui.
           </p>
         </CardContent>

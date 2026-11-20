@@ -12,7 +12,7 @@ const row = (id: number, employeeId: number, date: string, type: AttendanceType,
   ({ id, employeeId, attendanceDate: date, type, recordedAt: at(date, hhmm), photoPath: `attendance/2026-11/${id}.jpg`, notes: null, correctionId: null });
 
 const emp = (id: number, joinDate: string, department = 'IT') =>
-  ({ id, employeeCode: `EMP-00${id}`, fullName: `Karyawan ${id}`, department, position: 'Staff', joinDate });
+  ({ id, nip: `2026000${id}`, fullName: `Karyawan ${id}`, department, position: 'Staff', joinDate });
 
 async function setup(opts: { rows?: any[]; holidays?: any[]; employees?: any[]; leaves?: any[]; leaveDown?: boolean } = {}) {
   const repo = memRepo<Attendance>(opts.rows ?? []);

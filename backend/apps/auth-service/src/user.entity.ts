@@ -18,6 +18,10 @@ export class User {
   @Column({ name: 'is_active', type: 'tinyint', width: 1, default: 1, transformer: { to: (v?: boolean) => (v === undefined ? v : v ? 1 : 0), from: (v: number) => !!v } })
   isActive: boolean;
 
+  /** true = akun baru, password masih NIP; karyawan wajib menggantinya */
+  @Column({ name: 'must_change_password', type: 'tinyint', width: 1, default: 0, transformer: { to: (v?: boolean) => (v === undefined ? v : v ? 1 : 0), from: (v: number) => !!v } })
+  mustChangePassword: boolean;
+
   @Column({ name: 'last_login_at', type: 'datetime', nullable: true })
   lastLoginAt: Date | null;
 

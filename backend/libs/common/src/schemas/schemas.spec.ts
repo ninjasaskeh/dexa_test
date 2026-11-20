@@ -1,17 +1,19 @@
 import {
-  attendanceQuerySchema, changePasswordSchema, createCorrectionSchema, createEmployeeSchema, createLeaveSchema, loginSchema,
-  recapQuerySchema, reviewRequestSchema, updateEmployeeSchema,
+  attendanceQuerySchema, changePasswordSchema, createCorrectionSchema, createDepartmentSchema, createEmployeeSchema, createLeaveSchema,
+  createPositionSchema, loginSchema, recapQuerySchema, reviewRequestSchema, updateEmployeeSchema, updatePositionSchema,
 } from './index';
 
 const issues = (r: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) =>
   Object.fromEntries((r.error?.issues ?? []).map((i) => [i.path.join('.'), i.message]));
 
 describe('schema validasi (dipakai gateway, disalin di frontend)', () => {
-  it('login: email dirapikan sebelum divalidasi', () => {
-    const r = loginSchema.safeParse({ email: '  Budi@Dexa.LOCAL ', password: 'x' });
-    expect(r.success && r.data.email).toBe('budi@dexa.local');
-    expect(issues(loginSchema.safeParse({ email: 'bukan-email', password: '' }))).toEqual({
-      email: 'Format email tidak valid',
+  it('login: email di-lowercase, NIP apa adanya', () => {
+    const email = loginSchema.safeParse({ identifier: '  Budi@Dexa.LOCAL ', password: 'x' });
+    expect(email.success && email.data.identifier).toBe('budi@dexa.local');
+    const nip = loginSchema.safeParse({ identifier: ' 20260045 ', password: 'x' });
+    expect(nip.success && nip.data.identifier).toBe('20260045');
+    expect(issues(loginSchema.safeParse({ identifier: ' ', password: '' }))).toEqual({
+      identifier: 'Email atau NIP wajib diisi',
       password: 'Password wajib diisi',
     });
   });
@@ -25,14 +27,25 @@ describe('schema validasi (dipakai gateway, disalin di frontend)', () => {
   });
 
   const employee = {
-    employeeCode: 'emp-010', fullName: 'Dewi Lestari', position: 'Analyst', department: 'Finance',
-    joinDate: '2026-11-01', email: 'dewi@dexa.local', password: 'Rahasia123',
+    nip: ' 20260045 ', fullName: 'Dewi Lestari', departmentId: '2', positionId: 5, joinDate: '2026-11-01', email: 'dewi@dexa.local',
   };
 
-  it('karyawan baru: kode jadi huruf besar, role default EMPLOYEE, HP kosong jadi null', () => {
+  it('karyawan baru: NIP di-trim, id departemen/jabatan jadi angka, role default EMPLOYEE, HP kosong jadi null', () => {
     const r = createEmployeeSchema.safeParse({ ...employee, phone: '' });
     expect(r.success).toBe(true);
-    if (r.success) expect([r.data.employeeCode, r.data.role, r.data.phone]).toEqual(['EMP-010', 'EMPLOYEE', null]);
+    if (r.success) expect(r.data).toMatchObject({ nip: '20260045', departmentId: 2, positionId: 5, role: 'EMPLOYEE', phone: null });
+    // HRD tidak mengisi password: password awal = NIP
+    expect(r.success && 'password' in r.data).toBe(false);
+  });
+
+  it('karyawan baru: NIP angka minimal 8 digit; departemen & jabatan wajib', () => {
+    expect(issues(createEmployeeSchema.safeParse({ ...employee, nip: 'EMP-0045', departmentId: undefined, positionId: 0 }))).toEqual({
+      nip: 'NIP hanya boleh berisi angka',
+      departmentId: 'Departemen wajib dipilih',
+      positionId: 'Jabatan wajib dipilih',
+    });
+    expect(issues(createEmployeeSchema.safeParse({ ...employee, nip: '2026045' }))).toEqual({ nip: 'NIP minimal 8 digit' });
+    expect(createEmployeeSchema.safeParse({ ...employee, nip: '26110045' }).success).toBe(true);
   });
 
   it('karyawan baru: nomor HP harus format Indonesia', () => {
@@ -40,10 +53,16 @@ describe('schema validasi (dipakai gateway, disalin di frontend)', () => {
     expect(createEmployeeSchema.safeParse({ ...employee, phone: '+6281234567890' }).success).toBe(true);
   });
 
-  it('update karyawan: body kosong ditolak, password kosong diabaikan', () => {
+  it('update karyawan: body kosong ditolak, field password tidak dikenal', () => {
     expect(updateEmployeeSchema.safeParse({}).success).toBe(false);
-    const r = updateEmployeeSchema.safeParse({ fullName: 'Dewi L', password: '' });
-    expect(r.success && r.data.password).toBeUndefined();
+    const r = updateEmployeeSchema.safeParse({ fullName: 'Dewi L', password: 'Rahasia123' });
+    expect(r.success && r.data).toEqual({ fullName: 'Dewi L' });
+  });
+
+  it('departemen & jabatan: nama 2–80 karakter', () => {
+    expect(issues(createDepartmentSchema.safeParse({ name: ' A ' }))).toEqual({ name: 'Nama departemen minimal 2 karakter' });
+    expect(createPositionSchema.safeParse({ departmentId: '1', name: 'QA Engineer' }).success).toBe(true);
+    expect(updatePositionSchema.safeParse({}).success).toBe(false);
   });
 
   it('filter absensi: tanggal akhir tidak boleh sebelum tanggal awal, limit maks 100', () => {

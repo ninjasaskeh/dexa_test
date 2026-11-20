@@ -10,6 +10,8 @@ export interface AuthUser {
   id: number;
   email: string;
   role: Role;
+  /** true = akun baru, password masih NIP; hanya boleh mengganti password sampai diubah */
+  mustChangePassword: boolean;
 }
 
 /** HRD yang memproses pengajuan (cuti/izin/sakit, koreksi absen) */

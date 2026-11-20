@@ -3,6 +3,7 @@ import { useForm, type FieldValues, type Path, type UseFormReturn } from "react-
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import { addDays, format, parseISO } from "date-fns"
+import { DatePicker } from "@/components/date-picker"
 import { FormField } from "@/components/form-field"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -63,7 +64,7 @@ export function LeaveFormDialog({ open, onOpenChange, today }: FormDialogProps) 
         <DialogHeader>
           <DialogTitle>Ajukan cuti / izin / sakit</DialogTitle>
           <DialogDescription>
-            Cuti diajukan sebelum tanggal mulai. Izin dan sakit boleh menyusul paling lambat {LEAVE_BACKDATE_DAYS} hari.
+            Cuti diajukan sebelum tanggal mulai. Izin dan sakit dapat diajukan paling lambat {LEAVE_BACKDATE_DAYS} hari setelahnya.
           </DialogDescription>
         </DialogHeader>
         <form id="leave-form" onSubmit={onSubmit} noValidate>
@@ -82,10 +83,10 @@ export function LeaveFormDialog({ open, onOpenChange, today }: FormDialogProps) 
             </FormField>
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField control={c} name="startDate" label="Mulai">
-                {(f) => <Input {...f} type="date" min={type === "CUTI" ? today : shift(today, -LEAVE_BACKDATE_DAYS)} />}
+                {(f) => <DatePicker {...f} min={type === "CUTI" ? today : shift(today, -LEAVE_BACKDATE_DAYS)} />}
               </FormField>
               <FormField control={c} name="endDate" label="Selesai">
-                {(f) => <Input {...f} type="date" min={start || undefined} />}
+                {(f) => <DatePicker {...f} min={start || undefined} />}
               </FormField>
             </div>
             <FormField control={c} name="reason" label="Alasan">
@@ -128,14 +129,14 @@ export function CorrectionFormDialog({ open, onOpenChange, today, initial }: For
         <DialogHeader>
           <DialogTitle>Ajukan koreksi absen</DialogTitle>
           <DialogDescription>
-            Untuk absen yang terlewat atau jamnya keliru, maksimal {CORRECTION_MAX_DAYS} hari ke belakang. Lupa keduanya? Ajukan check-in dulu, lalu check-out.
+            Untuk absensi yang terlewat atau jamnya tidak sesuai, paling lama {CORRECTION_MAX_DAYS} hari ke belakang. Bila keduanya terlewat, ajukan koreksi check-in terlebih dahulu.
           </DialogDescription>
         </DialogHeader>
         <form id="correction-form" onSubmit={onSubmit} noValidate>
           <FieldGroup className="gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField control={c} name="date" label="Tanggal">
-                {(f) => <Input {...f} type="date" min={shift(today, -CORRECTION_MAX_DAYS)} max={today} />}
+                {(f) => <DatePicker {...f} min={shift(today, -CORRECTION_MAX_DAYS)} max={today} />}
               </FormField>
               <FormField control={c} name="type" label="Tipe">
                 {({ value, onChange, id }) => (

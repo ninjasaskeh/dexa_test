@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  IconBriefcase,
+  IconBuildingCommunity,
   IconCalendarCheck,
   IconCalendarOff,
   IconCameraSelfie,
@@ -28,18 +30,20 @@ import {
 import { Logo } from "@/components/logo"
 
 const employeeNav = [
-  { title: "Absen Hari Ini", url: "/absen", icon: IconCameraSelfie },
-  { title: "Riwayat Absensi", url: "/riwayat", icon: IconHistory },
-  { title: "Pengajuan", url: "/pengajuan", icon: IconFileDescription },
+  { title: "Absen Hari Ini", url: "/attendance", icon: IconCameraSelfie },
+  { title: "Riwayat Absensi", url: "/history", icon: IconHistory },
+  { title: "Pengajuan", url: "/requests", icon: IconFileDescription },
 ]
 
 const hrNav = [
   { title: "Dashboard", url: "/dashboard", icon: IconLayoutDashboard },
-  { title: "Data Karyawan", url: "/karyawan", icon: IconUsers },
+  { title: "Data Karyawan", url: "/employees", icon: IconUsers },
+  { title: "Departemen", url: "/departments", icon: IconBuildingCommunity },
+  { title: "Jabatan", url: "/positions", icon: IconBriefcase },
   { title: "Monitoring Absensi", url: "/monitoring", icon: IconCalendarCheck },
-  { title: "Rekap Bulanan", url: "/rekap", icon: IconReportAnalytics },
-  { title: "Persetujuan", url: "/persetujuan", icon: IconChecklist },
-  { title: "Hari Libur", url: "/hari-libur", icon: IconCalendarOff },
+  { title: "Rekap Bulanan", url: "/recap", icon: IconReportAnalytics },
+  { title: "Persetujuan", url: "/approvals", icon: IconChecklist },
+  { title: "Hari Libur", url: "/holidays", icon: IconCalendarOff },
 ]
 
 /** Diadaptasi dari block shadcn dashboard-01 (app-sidebar) */
@@ -67,7 +71,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {isHr && <NavMain label="Admin HRD" items={hrNav.map((n) => (n.url === "/persetujuan" ? { ...n, badge: pending } : n))} />}
+        {isHr && <NavMain label="Admin HRD" items={hrNav.map((n) => (n.url === "/approvals" ? { ...n, badge: pending } : n))} />}
         {user?.employee && <NavMain label="Absensi Saya" items={employeeNav} />}
       </SidebarContent>
       <SidebarFooter>

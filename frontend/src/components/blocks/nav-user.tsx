@@ -60,7 +60,7 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onSelect={() => navigate("/profil")}>
+              <DropdownMenuItem onSelect={() => navigate("/profile")}>
                 <IconUserCircle />
                 Profil & keamanan
               </DropdownMenuItem>

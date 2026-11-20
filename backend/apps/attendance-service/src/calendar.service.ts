@@ -4,10 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import type Redis from 'ioredis';
 import { Between, In, Repository } from 'typeorm';
-import { CreateHolidayDto, REDIS, eachDate, isoWeekday, localDate, rpcError } from '@app/common';
+import { CreateHolidayDto, HolidayType, REDIS, eachDate, isoWeekday, localDate, rpcError } from '@app/common';
 import { Holiday } from './holiday.entity';
 
-const DEFAULT_SYNC_URL = 'https://raw.githubusercontent.com/guangrei/APIHariLibur_V2/main/holidays.json';
+/** API Tanggal Merah (upsetdev/tanggalmerah): libur nasional & cuti bersama dari SKB 3 Menteri */
+const DEFAULT_SYNC_URL = 'https://tanggalmerah.upset.dev/api';
+const FETCH_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 /** Hasil sinkron terakhir, dibaca semua instance attendance-service */
 const KEY_LAST = 'holidays:sync:last';
@@ -27,20 +29,85 @@ export interface SyncResult {
   message: string | null;
 }
 
+interface FeedItem {
+  date: string;
+  name: string;
+  type: HolidayType;
+}
+
+const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+
 /**
- * Ambil daftar { date, name } dari feed APIHariLibur_V2: { "YYYY-MM-DD": { "summary": "..." }, "info": {...} }.
- * Kunci selain tanggal (mis. "info") diabaikan; summary berupa array digabung dengan " / ".
+ * Ubah satu respons feed menjadi daftar libur. Format yang dikenali:
+ * - API Tanggal Merah: `{ success, data: [{ date, name, type: "holiday" | "leave" }] }`
+ * - file data Tanggal Merah: `{ year, holidays: [...] }`, atau array item langsung
+ * - APIHariLibur (guangrei): `{ "YYYY-MM-DD": { summary } }`; cuti bersama dikenali dari namanya
+ * Satu tanggal bisa muncul lebih dari sekali: nama digabung, dan libur menang atas cuti bersama.
  */
-function parseFeed(body: unknown): { date: string; name: string }[] {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('format data tidak dikenali');
-  const out: { date: string; name: string }[] = [];
-  for (const [date, v] of Object.entries(body as Record<string, unknown>)) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) continue;
-    const summary = (v as { summary?: unknown } | null)?.summary;
-    const name = (Array.isArray(summary) ? summary.filter((s) => typeof s === 'string').join(' / ') : typeof summary === 'string' ? summary : '').trim();
-    if (name) out.push({ date, name: name.slice(0, 120) });
+export function parseFeed(body: unknown): FeedItem[] {
+  if (!body || typeof body !== 'object') throw new Error('format data tidak dikenali');
+  const b = body as Record<string, unknown>;
+  const list = Array.isArray(body) ? body : Array.isArray(b.data) ? b.data : Array.isArray(b.holidays) ? b.holidays : null;
+  const raw: FeedItem[] = [];
+  if (list) {
+    for (const it of list as Record<string, unknown>[]) {
+      const name = typeof it?.name === 'string' ? it.name.trim() : '';
+      if (isDate(it?.date) && name) raw.push({ date: it.date, name, type: it.type === 'leave' ? 'LEAVE' : 'HOLIDAY' });
+    }
+  } else {
+    for (const [date, v] of Object.entries(b)) {
+      if (!isDate(date)) continue;
+      const summary = (v as { summary?: unknown } | null)?.summary;
+      const name = (Array.isArray(summary) ? summary.filter((x) => typeof x === 'string').join(' / ') : typeof summary === 'string' ? summary : '').trim();
+      if (name) raw.push({ date, name, type: /cuti bersama/i.test(name) ? 'LEAVE' : 'HOLIDAY' });
+    }
   }
-  return out;
+  const byDate = new Map<string, { names: string[]; type: HolidayType }>();
+  for (const it of raw) {
+    const cur = byDate.get(it.date) ?? { names: [], type: it.type };
+    if (!cur.names.includes(it.name)) cur.names.push(it.name);
+    if (it.type === 'HOLIDAY') cur.type = 'HOLIDAY';
+    byDate.set(it.date, cur);
+  }
+  return [...byDate].map(([date, v]) => ({ date, name: v.names.join(' / ').slice(0, 120), type: v.type }));
+}
+
+/** GET JSON; 404 = data tidak ada (null), status error lain dilempar */
+async function fetchJson(url: string): Promise<unknown> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { accept: 'application/json' } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status} dari ${url}`);
+  return res.json();
+}
+
+/**
+ * Ambil semua libur dari sumber beserta tahun yang benar-benar tercakup.
+ * URL berakhiran `.json` = satu file berisi semua tanggal. Selain itu dianggap base API Tanggal Merah:
+ * `GET {url}/years`, lalu `GET {url}/holidays?year=YYYY` per tahun.
+ */
+async function fetchFeed(url: string): Promise<{ items: FeedItem[]; years: string[] }> {
+  if (/\.json(\?|$)/i.test(url)) {
+    const body = await fetchJson(url);
+    if (body === null) throw new Error(`HTTP 404 dari ${url}`);
+    const items = parseFeed(body);
+    return { items, years: [...new Set(items.map((i) => i.date.slice(0, 4)))].sort() };
+  }
+  const base = url.replace(/\/+$/, '');
+  const yearsBody = (await fetchJson(`${base}/years`)) as { data?: unknown } | null;
+  const available = Array.isArray(yearsBody?.data) ? yearsBody.data.filter((y): y is number => Number.isInteger(y)) : [];
+  if (!available.length) throw new Error('sumber online tidak mencantumkan tahun yang tersedia');
+  const items: FeedItem[] = [];
+  const years: string[] = [];
+  for (const y of available.sort()) {
+    const body = await fetchJson(`${base}/holidays?year=${y}`);
+    const list = body === null ? [] : parseFeed(body);
+    // tahun tanpa data tidak dianggap tercakup, jadi libur tahun itu tidak dihapus
+    if (list.length) {
+      items.push(...list);
+      years.push(String(y));
+    }
+  }
+  return { items, years };
 }
 
 export interface CalendarDay {
@@ -117,11 +184,9 @@ export class CalendarService implements OnApplicationBootstrap, OnModuleDestroy 
   private async syncFrom(url: string): Promise<SyncResult> {
     const at = new Date().toISOString();
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const feed = parseFeed(await res.json());
-      if (!feed.length) throw new Error('data kosong');
-      const years = [...new Set(feed.map((f) => f.date.slice(0, 4)))].sort();
+      const { items: feed, years } = await fetchFeed(url);
+      // feed kosong hampir pasti gangguan di sumbernya; jangan dianggap "semua libur dihapus"
+      if (!feed.length) throw new Error('sumber online tidak berisi satu pun hari libur (kemungkinan sedang bermasalah). Data hari libur yang ada tidak diubah');
       const feedDates = new Set(feed.map((f) => f.date));
 
       const result = await this.holidays.manager.transaction(async (m) => {
@@ -134,11 +199,11 @@ export class CalendarService implements OnApplicationBootstrap, OnModuleDestroy 
         for (const f of feed) {
           const h = byDate.get(f.date);
           if (!h) {
-            await repo.insert({ date: f.date, name: f.name, source: 'SYNC', isActive: true });
+            await repo.insert({ date: f.date, name: f.name, type: f.type, source: 'SYNC', isActive: true });
             added += 1;
-          } else if (h.source === 'SYNC' && h.name !== f.name) {
+          } else if (h.source === 'SYNC' && (h.name !== f.name || h.type !== f.type)) {
             // status disembunyikan tetap dipertahankan; libur MANUAL tidak pernah disentuh
-            await repo.update(h.id, { name: f.name });
+            await repo.update(h.id, { name: f.name, type: f.type });
             updated += 1;
           }
         }
@@ -200,13 +265,13 @@ export class CalendarService implements OnApplicationBootstrap, OnModuleDestroy 
     const y = year ?? Number(localDate().slice(0, 4));
     // termasuk yang disembunyikan, agar HRD bisa menampilkannya lagi
     const data = await this.holidays.find({ where: { date: Between(`${y}-01-01`, `${y}-12-31`) }, order: { date: 'ASC' } });
-    return { year: y, workDays: this.workDays, sync: { enabled: !!this.syncUrl, url: this.syncUrl || null, last: await this.lastResult() }, data };
+    return { year: y, today: localDate(), workDays: this.workDays, sync: { enabled: !!this.syncUrl, url: this.syncUrl || null, last: await this.lastResult() }, data };
   }
 
   async create(dto: CreateHolidayDto) {
     const existing = await this.holidays.findOneBy({ date: dto.date });
     if (existing) rpcError(HttpStatus.CONFLICT, `Tanggal ini sudah terdaftar sebagai hari libur (${existing.name})`);
-    return this.holidays.save(this.holidays.create({ date: dto.date, name: dto.name, source: 'MANUAL', isActive: true }));
+    return this.holidays.save(this.holidays.create({ date: dto.date, name: dto.name, type: dto.type, source: 'MANUAL', isActive: true }));
   }
 
   private async getOrFail(id: number) {

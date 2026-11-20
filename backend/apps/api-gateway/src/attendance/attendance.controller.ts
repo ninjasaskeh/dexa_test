@@ -11,7 +11,7 @@ import {
   SubmitAttendanceDto, ZodValidationPipe, attendanceQuerySchema, idParamSchema, recapQuerySchema, sendRpc, submitAttendanceSchema,
 } from '@app/common';
 import { CurrentUser, Roles } from '../auth/auth.decorators';
-import { sendCsv } from '../common/csv';
+import { ExportFormat, exportFormatSchema, sendExport } from '../common/export';
 import { employeeIdOf } from '../common/employee';
 import { UPLOAD_ROOT, UploadTooLargeFilter, assertRealImage } from './upload.config';
 
@@ -36,6 +36,11 @@ interface RecapRow {
   extraDays: number;
   workMinutes: number;
 }
+
+/** "2026-11-20" -> "20/11/2026" */
+const dmy = (date: string) => date.split('-').reverse().join('/');
+/** "2026-11" -> "November 2026" */
+const monthName = (ym: string) => new Date(`${ym}-01T00:00:00`).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
 /** Jam lokal gateway (TZ sama dengan service) */
 const hhmm = (iso: string) => {
@@ -90,23 +95,34 @@ export class AttendanceController {
     return sendRpc(this.attendance, PATTERNS.ATTENDANCE.FIND_ALL, query);
   }
 
-  /** Export CSV dengan filter yang sama seperti monitoring (tanpa paginasi) */
+  /** Export CSV / Excel (`?format=csv|xlsx`) dengan filter yang sama seperti monitoring (tanpa paginasi) */
   @Roles(Role.HR_ADMIN)
   @Get('export')
-  async export(@Query(new ZodValidationPipe(attendanceQuerySchema)) query: AttendanceQuery, @Res() res: Response) {
+  async export(
+    @Query(new ZodValidationPipe(attendanceQuerySchema)) query: AttendanceQuery,
+    @Query('format', new ZodValidationPipe(exportFormatSchema, 'format')) format: ExportFormat,
+    @Res() res: Response,
+  ) {
     const rows = await sendRpc<AttendanceRow[]>(this.attendance, PATTERNS.ATTENDANCE.EXPORT, query);
     const range = query.from ? `${query.from}_${query.to ?? query.from}` : 'semua';
-    sendCsv(
-      res,
-      `absensi_${range}.csv`,
-      ['Tanggal', 'Jam', 'Kode Karyawan', 'Nama', 'Departemen', 'Jabatan', 'Tipe', 'Status', 'Catatan', 'Sumber'],
-      rows.map((a) => [
-        a.attendanceDate, hhmm(a.recordedAt), a.employee?.employeeCode, a.employee?.fullName, a.employee?.department, a.employee?.position,
+    const period = query.from ? (query.to && query.to !== query.from ? `${dmy(query.from)} – ${dmy(query.to)}` : dmy(query.from)) : 'semua tanggal';
+    await sendExport(res, format, {
+      filename: `absensi_${range}`,
+      sheetName: 'Absensi',
+      title: `Absensi WFH Karyawan · ${period}`,
+      columns: [
+        { header: 'No', width: 6, align: 'center' }, { header: 'Tanggal', width: 12, numFmt: 'dd/mm/yyyy' }, { header: 'Jam', width: 8, align: 'center' },
+        { header: 'NIP', width: 12 }, { header: 'Nama', width: 24 }, { header: 'Departemen', width: 18 }, { header: 'Jabatan', width: 22 },
+        { header: 'Tipe', width: 11 }, { header: 'Status', width: 13 }, { header: 'Catatan', width: 36 }, { header: 'Sumber', width: 13 },
+      ],
+      rows: rows.map((a, i) => [
+        // Excel: tanggal asli (bisa diurutkan & difilter sebagai tanggal); CSV: teks YYYY-MM-DD
+        i + 1, format === 'xlsx' ? new Date(`${a.attendanceDate}T00:00:00Z`) : a.attendanceDate, hhmm(a.recordedAt), a.employee?.nip, a.employee?.fullName, a.employee?.department, a.employee?.position,
         a.type === AttendanceType.CHECK_IN ? 'Check-in' : 'Check-out',
         a.type === AttendanceType.CHECK_IN ? (a.isLate ? 'Terlambat' : 'Tepat waktu') : '',
         a.notes, a.correctionId ? 'Koreksi HRD' : 'Foto',
       ]),
-    );
+    });
   }
 
   @Roles(Role.HR_ADMIN)
@@ -122,20 +138,35 @@ export class AttendanceController {
     return sendRpc(this.attendance, PATTERNS.ATTENDANCE.RECAP, query);
   }
 
+  /** Export rekap bulanan sebagai CSV / Excel (`?format=csv|xlsx`) */
   @Roles(Role.HR_ADMIN)
   @Get('recap/export')
-  async recapExport(@Query(new ZodValidationPipe(recapQuerySchema)) query: RecapQuery, @Res() res: Response) {
-    const recap = await sendRpc<{ month: string; data: RecapRow[] }>(this.attendance, PATTERNS.ATTENDANCE.RECAP, query);
-    sendCsv(
-      res,
-      `rekap_absensi_${recap.month}.csv`,
-      ['Kode Karyawan', 'Nama', 'Departemen', 'Jabatan', 'Hari Kerja', 'Hadir', 'Terlambat', 'Tanpa Check-out', 'Cuti', 'Izin', 'Sakit', 'Alpa', 'Masuk di Hari Libur', 'Total Jam Kerja', 'Kehadiran (%)'],
-      recap.data.map((r) => [
-        r.employee.employeeCode, r.employee.fullName, r.employee.department, r.employee.position,
+  async recapExport(
+    @Query(new ZodValidationPipe(recapQuerySchema)) query: RecapQuery,
+    @Query('format', new ZodValidationPipe(exportFormatSchema, 'format')) format: ExportFormat,
+    @Res() res: Response,
+  ) {
+    const recap = await sendRpc<{ month: string; from: string; to: string; data: RecapRow[] }>(this.attendance, PATTERNS.ATTENDANCE.RECAP, query);
+    const n = (header: string, width = 11) => ({ header, width, numFmt: '0', align: 'right' as const });
+    await sendExport(res, format, {
+      filename: `rekap_absensi_${recap.month}`,
+      sheetName: `Rekap ${recap.month}`,
+      title: `Rekap Absensi ${monthName(recap.month)} · ${dmy(recap.from)} – ${dmy(recap.to)}`,
+      columns: [
+        { header: 'No', width: 6, align: 'center' }, { header: 'NIP', width: 12 }, { header: 'Nama', width: 24 }, { header: 'Departemen', width: 18 },
+        { header: 'Jabatan', width: 22 }, n('Hari Kerja'), n('Hadir', 8), n('Terlambat'), n('Tanpa Check-out', 15), n('Cuti', 7), n('Izin', 7),
+        n('Sakit', 7), n('Alpa', 7), n('Masuk di Hari Libur', 18),
+        { header: 'Total Jam Kerja', width: 15, numFmt: '0.0', align: 'right' },
+        { header: 'Kehadiran', width: 11, numFmt: '0%', align: 'right' },
+      ],
+      // CSV memakai teks yang sama seperti sebelumnya; Excel mendapat angka asli agar bisa dihitung
+      rows: recap.data.map((r, i) => [
+        i + 1, r.employee.nip, r.employee.fullName, r.employee.department, r.employee.position,
         r.workDays, r.present, r.late, r.noCheckOut, r.leave.CUTI, r.leave.IZIN, r.leave.SAKIT, r.absent, r.extraDays,
-        (r.workMinutes / 60).toFixed(1), r.workDays ? Math.round((r.present / r.workDays) * 100) : '',
+        format === 'xlsx' ? Math.round((r.workMinutes / 60) * 10) / 10 : (r.workMinutes / 60).toFixed(1),
+        r.workDays ? (format === 'xlsx' ? r.present / r.workDays : `${Math.round((r.present / r.workDays) * 100)}%`) : null,
       ]),
-    );
+    });
   }
 
   /** Foto bukti: hanya pemilik absen atau HRD. Path file tidak pernah dikirim ke client. */

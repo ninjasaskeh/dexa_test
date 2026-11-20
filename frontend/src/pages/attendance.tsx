@@ -146,7 +146,7 @@ function WeekCard({ today }: { today: string }) {
       </CardContent>
       <CardFooter>
         <Button variant="link" className="h-auto px-0" asChild>
-          <Link to="/riwayat">Semua riwayat <IconArrowRight /></Link>
+          <Link to="/history">Semua riwayat <IconArrowRight /></Link>
         </Button>
       </CardFooter>
     </Card>
@@ -160,7 +160,7 @@ function DoneCard({ t }: { t: TodayAttendance }) {
     <Card>
       <CardHeader>
         <CardTitle>Absensi hari ini lengkap</CardTitle>
-        <CardDescription>Terima kasih. Data Anda sudah diterima HRD.</CardDescription>
+        <CardDescription>Check-in dan check-out hari ini telah tercatat.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2">
         {items.map((a) => (
@@ -204,7 +204,7 @@ function CaptureCard({ step, t }: { step: Step; t: TodayAttendance }) {
     <Card>
       <CardHeader>
         <CardTitle>{isIn ? "Foto check-in" : "Foto check-out"}</CardTitle>
-        <CardDescription>Ambil foto di tempat Anda bekerja hari ini. Jam dicatat oleh server saat dikirim.</CardDescription>
+        <CardDescription>Ambil foto di lokasi kerja Anda. Waktu absensi dicatat otomatis oleh sistem.</CardDescription>
       </CardHeader>
       <CardContent>
         <form id="attendance-form" onSubmit={onSubmit} className="space-y-4">
@@ -285,7 +285,7 @@ export default function AttendancePage() {
                     </EmptyDescription>
                   </EmptyHeader>
                   <Button variant="outline" asChild>
-                    <Link to={`/pengajuan?tab=koreksi&date=${t.date}&type=${pending}`}>Ajukan koreksi <IconArrowRight /></Link>
+                    <Link to={`/requests?tab=corrections&date=${t.date}&type=${pending}`}>Ajukan koreksi <IconArrowRight /></Link>
                   </Button>
                 </Empty>
               </CardContent>

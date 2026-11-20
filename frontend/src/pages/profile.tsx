@@ -1,50 +1,35 @@
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { toast } from "sonner"
+import { useEffect } from "react"
+import { useLocation } from "react-router"
 import { useAuth } from "@/components/auth-provider"
-import { FormField } from "@/components/form-field"
+import { ChangePasswordForm } from "@/components/change-password-form"
 import { PageHeader } from "@/components/page-header"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { FieldGroup } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Spinner } from "@/components/ui/spinner"
-import { api, getErrorMessage } from "@/lib/api"
 import { fmtDateLong, initials } from "@/lib/format"
-import { changePasswordSchema, type ChangePasswordValues } from "@/lib/schemas"
 
 export default function ProfilePage() {
-  const { user } = useAuth()
-  const form = useForm<ChangePasswordValues>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
-  })
+  const { user, refresh } = useAuth()
+  const { hash } = useLocation()
+  // dari banner "Ganti password": langsung ke form dan fokus ke kolom pertama
+  useEffect(() => {
+    if (hash !== "#change-password") return
+    const card = document.getElementById("change-password")
+    card?.scrollIntoView({ behavior: "smooth", block: "start" })
+    card?.querySelector("input")?.focus({ preventScroll: true })
+  }, [hash])
   if (!user) return null
   const e = user.employee
   const name = e?.fullName ?? user.email
 
-  const onSubmit = form.handleSubmit(async ({ currentPassword, newPassword }) => {
-    try {
-      await api.patch("/auth/password", { currentPassword, newPassword })
-      toast.success("Password berhasil diubah")
-      form.reset()
-    } catch (err) {
-      const msg = getErrorMessage(err)
-      if (/lama/i.test(msg)) form.setError("currentPassword", { message: msg })
-      toast.error("Gagal mengubah password", { description: msg })
-    }
-  })
-
   const rows: [string, string][] = e
-    ? [["Kode karyawan", e.employeeCode], ["Jabatan", e.position], ["Departemen", e.department], ["No. HP", e.phone ?? "-"], ["Bergabung", fmtDateLong(e.joinDate)]]
+    ? [["NIP", e.nip], ["Jabatan", e.position], ["Departemen", e.department], ["No. HP", e.phone ?? "-"], ["Bergabung", fmtDateLong(e.joinDate)]]
     : []
 
   return (
     <>
-      <PageHeader title="Profil & Keamanan" description="Informasi akun dan pengaturan password." />
+      <PageHeader title="Profil & Keamanan" description="Informasi akun dan pengaturan keamanan." />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center gap-4">
@@ -71,26 +56,14 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="change-password" className="scroll-mt-20">
           <CardHeader>
             <CardTitle>Ganti Password</CardTitle>
-            <CardDescription>Min. 8 karakter, mengandung huruf besar dan angka.</CardDescription>
+            <CardDescription>Gunakan password yang tidak dipakai di layanan lain.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form id="password-form" onSubmit={onSubmit} noValidate>
-              <FieldGroup>
-                <FormField control={form.control} name="currentPassword" label="Password lama">{(f) => <Input {...f} type="password" autoComplete="current-password" />}</FormField>
-                <FormField control={form.control} name="newPassword" label="Password baru">{(f) => <Input {...f} type="password" autoComplete="new-password" />}</FormField>
-                <FormField control={form.control} name="confirmPassword" label="Konfirmasi password baru">{(f) => <Input {...f} type="password" autoComplete="new-password" />}</FormField>
-              </FieldGroup>
-            </form>
+            <ChangePasswordForm currentLabel={user.mustChangePassword ? "Password saat ini (NIP)" : "Password lama"} onDone={refresh} />
           </CardContent>
-          <CardFooter>
-            <Button type="submit" form="password-form" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting && <Spinner />}
-              Simpan password
-            </Button>
-          </CardFooter>
         </Card>
       </div>
     </>

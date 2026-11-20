@@ -32,8 +32,13 @@ export const holidayQuerySchema = z.object({
 });
 export type HolidayQuery = z.infer<typeof holidayQuerySchema>;
 
+export const HOLIDAY_TYPES = ['HOLIDAY', 'LEAVE'] as const;
+/** HOLIDAY = libur nasional / perusahaan, LEAVE = cuti bersama */
+export type HolidayType = (typeof HOLIDAY_TYPES)[number];
+
 export const createHolidaySchema = z.object({
   date: dateString,
+  type: z.enum(HOLIDAY_TYPES, 'Jenis harus HOLIDAY atau LEAVE').default('HOLIDAY'),
   name: z.string('Nama hari libur wajib diisi').trim().min(3, 'Nama hari libur minimal 3 karakter').max(120),
 });
 export type CreateHolidayDto = z.infer<typeof createHolidaySchema>;

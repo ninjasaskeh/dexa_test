@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": { "outDir": "../../dist/apps/attendance-service" },
+  "compilerOptions": { "types": ["node", "multer"], "outDir": "../../dist/apps/attendance-service" },
   "include": ["src/**/*", "../../libs/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "../../libs/**/*.spec.ts"]
 }
